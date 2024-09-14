@@ -1,63 +1,46 @@
 from datetime import datetime
 
 import aioredis
-import redis
 
-from app.models.task import TaskStatus
 from app.core.config import settings
+from app.models.task import TaskStatus
 
 # redis_host = 'localhost'
 # redis_port = 6379
 
 
 class Redis:
-    def __init__(self):
+    def __init__(self) -> None:
         self.redis: aioredis.Redis = aioredis.Redis(
-            host=settings.REDIS_HOST,
-            port=settings.REDIS_PORT,
-            decode_responses=True
+            host=settings.REDIS_HOST, port=settings.REDIS_PORT, decode_responses=True
         )
 
+    async def create_task(self, session_id: str) -> None:
+        async with self.redis.pipeline() as pipe:
+            await pipe.rpush('processing_queue', session_id)
+            await pipe.hset(
+                f'session:{session_id}', mapping={'status': TaskStatus.QUEUED, 'timestamp': datetime.now().timestamp()}
+            )
+            await pipe.execute()
 
-    async def create_task(self, session_id):
-        await self.redis.rpush('processing_queue', session_id)
-        await self.redis.set(f'status:{session_id}', TaskStatus.QUEUED)
-        await self.redis.set(f'timestamp:{session_id}', datetime.now().timestamp())
+    async def get_status(self, session_id: str) -> str | None:
+        return await self.redis.hget(f'session:{session_id}', 'status')
 
-    async def get_status(self, session_id):
-        return await self.redis.get(f'status:{session_id}')
-
-    async def get_position(self, session_id):
+    async def get_position(self, session_id: str) -> str | None:
         return await self.redis.lpos('processing_queue', session_id)
 
-    async def get_completed_timestamp(self, session_id):
+    async def get_completed_timestamp(self, session_id: str) -> float | None:
         return await self.redis.get(f'completed_timestamp:{session_id}')
 
-    async def clear_storage(self):
+    async def complete_task(self, session_id: str) -> None:
+        async with self.redis.pipeline() as pipe:
+            await pipe.hset(f'session:{session_id}', 'status', TaskStatus.COMPLETED)
+            await pipe.hset(f'session:{session_id}', 'completed_timestamp', datetime.now().timestamp())
+            await pipe.lrem('processing_queue', 1, session_id)
+            await pipe.execute()
+
+    async def clear_storage(self) -> None:
         await self.redis.flushdb()
 
 
-class SyncRedis:
-    """
-    to purge DB:
-    r.flushdb()
-
-    r.llen('mylist')
-
-    """
-    def __init__(self):
-        self.redis: redis.Redis = redis.Redis(
-            host=settings.REDIS_HOST,
-            port=settings.REDIS_PORT,
-            decode_responses=True
-        )
-
-    def complete_task(self, session_id):
-        self.redis.set(f'status:{session_id}', TaskStatus.COMPLETED)
-        self.redis.set(f'completed_timestamp:{session_id}', datetime.now().timestamp())
-        self.redis.lrem('processing_queue', 1, session_id)
-
-
 redis_service = Redis()
-
-sync_redis_service = SyncRedis()

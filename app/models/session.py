@@ -1,8 +1,10 @@
 from pydantic import BaseModel
 
+
 class SessionPublic(BaseModel):
     session_id: str
     position: int | None = None
+
 
 class Session(SessionPublic):
     status: str

@@ -1,5 +1,3 @@
-
-
 class TaskStatus:  # (Enum)
     INIT = 'init'
     QUEUED = 'queued'

@@ -1,8 +1,8 @@
-import boto3
-import aio_pika
-from app.services.redis_service import redis_service, sync_redis_service
-from app.core.config import settings
 import asyncio
+
+import aio_pika
+
+from app.core.config import settings
 
 # s3_target = boto3.resource('s3',
 #     endpoint_url='http://127.0.0.1:9001',
@@ -12,6 +12,7 @@ import asyncio
 #     config=boto3.session.Config(signature_version='s3v4'),
 #     verify=False
 # )
+
 
 async def process_message(
     message: aio_pika.abc.AbstractIncomingMessage,
@@ -33,8 +34,8 @@ async def main() -> None:
             await queue.consume(process_message)
 
     except Exception as e:
-        print(f"Произошла ошибка: {e}")
+        print(f'Произошла ошибка: {e}')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     asyncio.run(main())

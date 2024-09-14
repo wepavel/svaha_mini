@@ -7,7 +7,7 @@ router = APIRouter()
 
 
 @router.post('/upload')
-async def create_upload_session():
+async def create_upload_session() -> dict[str, str]:
     session_id = generate_session_id()
     file_presigned_url = generate_presigned_url(file_name=f'{session_id}/music.mp3', file_type='audio/mp3')
     return {'session_id': session_id, 'upload_url': file_presigned_url}

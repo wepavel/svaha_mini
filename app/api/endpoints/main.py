@@ -1,4 +1,5 @@
 import time
+from typing import Any
 
 from fastapi import APIRouter
 from fastapi import Cookie
@@ -7,11 +8,11 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.core.errors import EXC
 from app.core.utils import generate_session_id
-from app.models.session import Session, SessionPublic
+from app.models.session import Session
+from app.models.session import SessionPublic
 from app.services.processing import send_to_queue
 from app.services.redis_service import TaskStatus
 from app.services.redis_service import redis_service
-
 
 router = APIRouter()
 
@@ -19,14 +20,12 @@ router = APIRouter()
 session_db = {}
 
 
-async def get_average_processing_time():
+async def get_average_processing_time() -> int:
     return 60  # Average processing time in seconds
 
 
 @router.get('/session')
-async def get_session(
-    session_id: str | None = Cookie(None)
-):
+async def get_session(session_id: str | None = Cookie(None)) -> Any:
     # if session_id is None:
     session_id = generate_session_id()
 
@@ -36,13 +35,14 @@ async def get_session(
             # "token_type": "bearer"
         }
     )
-    response.set_cookie(key='session_id',
-                        value=session_id,
-                        httponly=True,
-                        samesite='none',
-                        secure=True,
-                        max_age=settings.SESSION_EXPIRE_MINUTES*60,
-                        )
+    response.set_cookie(
+        key='session_id',
+        value=session_id,
+        httponly=True,
+        samesite='none',
+        secure=True,
+        max_age=settings.SESSION_EXPIRE_MINUTES * 60,
+    )
 
     # if session_id not in session_db:
     #     raise HTTPException(status_code=404, detail="Session not found")
@@ -51,25 +51,24 @@ async def get_session(
 
 @router.get('/create_task/{task_id}', response_model=SessionPublic)
 async def create_task(
-        task_id: str,
-        # session_id: str
-        session_id: str | None = Cookie(None),
-):
+    task_id: str,
+    session_id: str | None = Cookie(None),
+) -> Any:
     position = await redis_service.get_position(session_id)
     if position is not None:
         raise EXC(4000, 'Task already exists')
-    await send_to_queue({
-        'session_id': session_id,
-        'task_id': task_id,
-    })
+    await send_to_queue(
+        {
+            'session_id': session_id,
+            'task_id': task_id,
+        }
+    )
     position = await redis_service.get_position(session_id)
     return SessionPublic(session_id=session_id, position=position)
 
 
 @router.get('/status', response_model=Session)
-async def get_status(
-    session_id: str | None = Cookie(None)
-):
+async def get_status(session_id: str | None = Cookie(None)) -> Any:
     status = await redis_service.get_status(session_id)  # redis.get(f"status:{session_id}")
     if not status:
         raise EXC(4000, 'Task not found')
@@ -93,11 +92,12 @@ async def get_status(
         estimated_time=estimated_time,
         position=position,
         completed_timestamp=completed_timestamp,
-        timestamp=time.time()
+        timestamp=time.time(),
     )
 
+
 @router.delete('/clear')
-async def clear():
+async def clear() -> Any:
     await redis_service.clear_storage()
 
 

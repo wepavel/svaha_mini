@@ -11,9 +11,11 @@ from sqlmodel import create_engine
 
 NEW_UUID = lambda: str(uuid.uuid4())
 
+
 class Base(SQLModel):
     id: Any
     __name__: str
+
     # Generate __tablename__ automatically
     @declared_attr
     def __tablename__(cls) -> str:
@@ -21,8 +23,7 @@ class Base(SQLModel):
 
 
 class UserStatus(Base, table=True):
-    id: int | None = Field(default=None, primary_key=True,
-                           index=True, unique=True)
+    id: int | None = Field(default=None, primary_key=True, index=True, unique=True)
     status: str | None = Field(Enum('guest', 'subscriber', 'vip'))
 
     users: List['User'] = Relationship(back_populates='userstatus')
@@ -38,8 +39,6 @@ class User(Base, table=True):
     userstatus: UserStatus | None = Relationship(back_populates='users')
 
 
-
-
 sqlite_file_name = 'database.db'
 sqlite_url = f'sqlite:///{sqlite_file_name}'
 
@@ -47,5 +46,5 @@ connect_args = {'check_same_thread': False}
 engine = create_engine(sqlite_url, echo=True, connect_args=connect_args)
 
 
-def create_db_and_tables():
+def create_db_and_tables() -> None:
     SQLModel.metadata.create_all(engine)
