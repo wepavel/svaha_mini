@@ -14,10 +14,12 @@ from app.services.processing import send_to_queue
 from app.services.redis_service import TaskStatus
 from app.services.redis_service import redis_service
 
+# from test_worker import redis
+
 router = APIRouter()
 
 # Mock database
-session_db = {}
+# session_db = {}
 
 
 async def get_average_processing_time() -> int:
@@ -26,15 +28,19 @@ async def get_average_processing_time() -> int:
 
 @router.get('/session')
 async def get_session(session_id: str | None = Cookie(None)) -> Any:
+    """
+    Get session id and set it into cookie
+    """
     # if session_id is None:
     session_id = generate_session_id()
 
-    response = JSONResponse(
-        content={
-            # "access_token": security.create_access_token(user_id, expires_delta=access_token_expires),
-            # "token_type": "bearer"
-        }
-    )
+    # response = JSONResponse(
+    #     content={
+    #         # "access_token": security.create_access_token(user_id, expires_delta=access_token_expires),
+    #         # "token_type": "bearer"
+    #     }
+    # )
+    response = JSONResponse(content={})
     response.set_cookie(
         key='session_id',
         value=session_id,
@@ -54,6 +60,9 @@ async def create_task(
     task_id: str,
     session_id: str | None = Cookie(None),
 ) -> Any:
+    """
+    Create task for current session
+    """
     position = await redis_service.get_position(session_id)
     if position is not None:
         raise EXC(4000, 'Task already exists')
@@ -69,11 +78,15 @@ async def create_task(
 
 @router.get('/status', response_model=Session)
 async def get_status(session_id: str | None = Cookie(None)) -> Any:
+    """
+    Get status of current task
+    """
     status = await redis_service.get_status(session_id)  # redis.get(f"status:{session_id}")
     if not status:
         raise EXC(4000, 'Task not found')
 
     position = await redis_service.get_position(session_id)
+
     estimated_time = 0
     download_url = None
     completed_timestamp = None
@@ -81,9 +94,12 @@ async def get_status(session_id: str | None = Cookie(None)) -> Any:
         # download_url = f"https://s3-bucket-url/{session_id}/result.mp3"
         # completed_timestamp = await redis.get(f"completed_timestamp:{session_id}")
         completed_timestamp = await redis_service.get_completed_timestamp(session_id)
+
     else:
         avg_time = await get_average_processing_time()
         estimated_time = position * avg_time
+
+    # await redis_service.delete_task(session_id)
 
     return Session(
         session_id=session_id,
@@ -98,6 +114,9 @@ async def get_status(session_id: str | None = Cookie(None)) -> Any:
 
 @router.delete('/clear')
 async def clear() -> Any:
+    """
+    Clear Redis storage
+    """
     await redis_service.clear_storage()
 
 

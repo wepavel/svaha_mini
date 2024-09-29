@@ -1,3 +1,5 @@
+import json
+
 import aio_pika
 
 from app.core.config import settings
@@ -15,7 +17,7 @@ async def send_to_queue(message: dict) -> None:
         queue = await channel.declare_queue('processing_queue', durable=True)
 
         await channel.default_exchange.publish(
-            aio_pika.Message(body=b'Hello world'),
-            # aio_pika.Message(body=bytes(json.dumps(message), 'utf-8')),
+            # aio_pika.Message(body=b'Hello world'),
+            aio_pika.Message(body=bytes(json.dumps(message), 'utf-8')),
             routing_key=queue.name,
         )

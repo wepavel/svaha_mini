@@ -17,4 +17,5 @@ def exception_handler(app: FastAPI) -> None:
         if type(errors) is not dict:
             errors = {'msg': errors, 'redirect': False}
         errors['endpoint'] = request.url.__dict__.get('_url', None)
+        # return JSONResponse(status_code=400, content=jsonable_encoder({'detail': errors}))
         return JSONResponse(status_code=400, content=jsonable_encoder({'detail': errors}))
