@@ -6,7 +6,8 @@ from fastapi import Cookie
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
-from app.core.errors import EXC
+from app.core.exceptions import EXC
+from app.core.exceptions import ErrorCodes
 from app.core.utils import generate_session_id
 from app.models.session import Session
 from app.models.session import SessionPublic
@@ -118,6 +119,17 @@ async def clear() -> Any:
     Clear Redis storage
     """
     await redis_service.clear_storage()
+
+
+@router.get('/exc_test')
+async def exc_test():
+    """
+    Test exception
+    """
+
+    raise EXC(ErrorCodes.IncorrCreds)
+
+    # json_compatible_item_data = jsonable_encoder('Exception test')
 
 
 # @router.get("/status/{session_id}", response_model=Session)

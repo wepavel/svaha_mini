@@ -5,9 +5,6 @@ import aioredis
 from app.core.config import settings
 from app.models.task import TaskStatus
 
-# redis_host = 'localhost'
-# redis_port = 6379
-
 
 class Redis:
     def __init__(self) -> None:
@@ -40,7 +37,7 @@ class Redis:
         async with self.redis.pipeline() as pipe:
             await pipe.hset(
                 f'session:{session_id}',
-                mapping={'status': TaskStatus.COMPLETED, 'completed_timestamp': str(datetime.now().timestamp())},
+                mapping={'status': TaskStatus.COMPLETED, 'completed_timestamp': datetime.now().timestamp()},
             )
             await pipe.lrem('processing_queue', 1, session_id)
             await pipe.execute()
