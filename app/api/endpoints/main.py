@@ -66,7 +66,7 @@ async def create_task(
     """
     position = await redis_service.get_position(session_id)
     if position is not None:
-        raise EXC(4000, 'Task already exists')
+        raise EXC(ErrorCodes.Tas)
     await send_to_queue(
         {
             'session_id': session_id,

@@ -4,7 +4,7 @@ from fastapi import FastAPI
 # from fastapi.openapi.utils import get_openapi
 from app.api import api_router
 from app.core.config import settings
-from app.core.exceptions import custom_openapi
+from app.core.openapi import custom_openapi
 from app.core.exceptions import exception_handler
 
 app = FastAPI(

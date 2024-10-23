@@ -7,93 +7,90 @@ from fastapi import Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import HTTPException
 from fastapi.exceptions import RequestValidationError
-from fastapi.openapi.utils import get_openapi
+
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 
-def custom_openapi(app: FastAPI) -> None:
-    def custom_openapi() -> dict[str, Any]:
-        if app.openapi_schema:
-            return app.openapi_schema
-        openapi_schema = get_openapi(
-            title='Svaha Mini docs',
-            version='1.0.0',
-            description='This is an OpenAPI schema for Svaha Mini',
-            routes=app.routes,
-        )
-        openapi_schema['components']['schemas']['ValidationError'] = {
-            'type': 'object',
-            'properties': {
-                'msg': {'type': 'string'},
-                'code': {'type': 'integer', 'default': 4000},
-                'details': {'type': 'object'},
-                'redirect': {'type': 'boolean', 'default': False},
-                'notification': {'type': 'boolean', 'default': False},
-            },
-        }
-        openapi_schema['components']['schemas']['HTTPException'] = {
-            'type': 'object',
-            'properties': {
-                'msg': {'type': 'string'},
-                'code': {'type': 'integer', 'default': 5000},
-                'details': {'type': 'object'},
-                'redirect': {'type': 'boolean', 'default': False},
-                'notification': {'type': 'boolean', 'default': False},
-            },
-        }
-        for path in openapi_schema['paths']:
-            for method in openapi_schema['paths'][path]:
-                responses = openapi_schema['paths'][path][method]['responses']
-                if '422' in openapi_schema['paths'][path][method]['responses']:
-                    del openapi_schema['paths'][path][method]['responses']['422']
-                responses['400'] = {
-                    'description': 'Bad Request',
-                    'content': {'application/json': {'schema': {'$ref': '#/components/schemas/ValidationError'}}},
-                }
-                responses['500'] = {
-                    'description': 'Internal Server Error',
-                    'content': {'application/json': {'schema': {'$ref': '#/components/schemas/HTTPException'}}},
-                }
-        app.openapi_schema = openapi_schema
-        return app.openapi_schema
-
-    app.openapi = custom_openapi
-
-
 class ErrorCodes(Enum):
-    IncorrCreds = 1
-    NotAuthenticated = 2
-    Unauthorized = 3
-    Forbidden = 4
-    ExpiredSignatureError = 5
-    ValidationError = 6
-    UserExists = 7
-    UserNotExists = 8
-    NotEnoughPriv = 9
-    NotEnoughPerm = 10
-    NotFound = 11
-    InternalError = 12
-    DbError = 13
+    #  4000: Bad Request
+    BadRequest = 4000
+    #  4021 - 4040: User Management Errors
+    CouldNotValidateUserCreds = 4021
+    UserExpiredSignatureError = 4022
+    IncorrUserCreds = 4023
+    NotAuthenticated = 4030
+    InactiveUser = 4032
+    UserRegistrationForbidden = 4033
+    UserNotExists = 4035
+    UserExists = 4036
+    #  4041 - 4060: Project Management Errors
+    ProjectLocked = 4041
+    AvailableProjectsLimitExceeded = 4042
+    AvailableEditsLimitExceeded = 4043
+    NameAlreadyExists = 4044
+    InstrumentalTrackExists = 4045
+    #  4061 - 4081: Task Management Errors
+    TaskNotFound = 4061
+    TaskAlreadyExists = 4062
+    #  4301 - 4320: Resource and Limit Errors
+    TooManyRequestsError = 4301
+    #  4400: Validation Error
+    ValidationError = 4400
+    #  4401-4500: General Validation Errors
+
+    #  4501 - 4508: API and Request Errors
+    Unauthorized = 4501
+    AuthorizeError = 4502
+    ForbiddenError = 4503
+    NotFoundError = 4504
+    ResponseProcessingError = 4505
+    YookassaApiError = 4511
+    #  5000: Internal Server Error
+    InternalError = 5000
+    #  5021-5040: Core Errors
+    CoreOffline = 5021
+    CoreFileUploadingError = 5022
+    #  5041-5060: Database Errors
+    DbError = 5041
+    #  5061 - 5999: System and Server Errors
 
 
 ERROR_CODES_MAP: dict[ErrorCodes, dict[str, Any]] = {
-    ErrorCodes.IncorrCreds: {'code': 4000, 'msg': 'Incorrect login or password'},
-    ErrorCodes.Unauthorized: {
-        'code': 4001,
-        'msg': 'Sorry, you are not allowed to access this service: UnauthorizedRequest',
+    ErrorCodes.BadRequest: {'code': 4000, 'msg': 'Bad Request'},
+    ErrorCodes.CouldNotValidateUserCreds: {'code': 4021, 'msg': 'Could not validate credentials: ValidationError'},
+    ErrorCodes.UserExpiredSignatureError: {'code': 4022, 'msg': 'Could not validate credentials: ExpiredSignatureError'},
+    ErrorCodes.IncorrUserCreds: {
+        'code': 4023,
+        'msg': 'Incorrect login or password'
     },
-    ErrorCodes.Forbidden: {'code': 4003, 'msg': 'Request failed due to insufficient permissions: ForbiddenRequest'},
-    ErrorCodes.UserNotExists: {'code': 4004, 'msg': 'The user does not exist in the system'},
-    ErrorCodes.NotAuthenticated: {'code': 4007, 'msg': 'Not authenticated'},
-    ErrorCodes.ExpiredSignatureError: {'code': 4009, 'msg': 'Could not validate credentials: ExpiredSignatureError'},
-    ErrorCodes.ValidationError: {'code': 4010, 'msg': 'Could not validate credentials: ValidationError'},
-    ErrorCodes.UserExists: {'code': 4095, 'msg': 'The user already exists in the system'},
-    ErrorCodes.NotEnoughPriv: {'code': 4101, 'msg': "The user doesn't have enough privileges"},
-    ErrorCodes.NotEnoughPerm: {'code': 4102, 'msg': 'Not enough permissions'},
-    ErrorCodes.NotFound: {'code': 4104, 'msg': 'Not Found'},
+    ErrorCodes.NotAuthenticated: {'code': 4030, 'msg': 'Not authenticated'},
+    ErrorCodes.InactiveUser: {'code': 4032, 'msg': 'Inactive user'},
+    ErrorCodes.UserRegistrationForbidden: {
+        'code': 4033,
+        'msg': 'Open user registration is forbidden on this server'
+    },
+    ErrorCodes.UserNotExists: {'code': 4035, 'msg': 'The user with this username does not exist in the system'},
+    ErrorCodes.UserExists: {'code': 4036, 'msg': 'The user already exists in the system'},
+    ErrorCodes.ProjectLocked: {'code': 4041, 'msg': 'Project locked'},
+    ErrorCodes.AvailableProjectsLimitExceeded: {'code': 4042, 'msg': 'Available projects limit exceeded'},
+    ErrorCodes.AvailableEditsLimitExceeded: {'code': 4043, 'msg': 'Available edits limit exceeded'},
+    ErrorCodes.NameAlreadyExists: {'code': 4044, 'msg': 'This name already exists'},
+    ErrorCodes.InstrumentalTrackExists: {'code': 4045, 'msg': 'Instrumental track already exists'},
+    ErrorCodes.TaskNotFound: {'code': 4061, 'msg': 'Task not found'},
+    ErrorCodes.TaskAlreadyExists: {'code': 4062, 'msg': 'Task already exists'},
+    ErrorCodes.TooManyRequestsError: {'code': 4301, 'msg': 'Too Many Requests'},
+    ErrorCodes.ValidationError: {'code': 4400, 'msg': 'Validation error'},
+    ErrorCodes.Unauthorized: {'code': 4501, 'msg': 'Sorry, you are not allowed to access this service: UnauthorizedRequest'},
+    ErrorCodes.AuthorizeError: {'code': 4502, 'msg': 'Authorization error'},
+    ErrorCodes.ForbiddenError: {'code': 4503, 'msg': 'Forbidden'},
+    ErrorCodes.NotFoundError: {'code': 4504, 'msg': 'Not Found'},
+    ErrorCodes.ResponseProcessingError: {'code': 4505, 'msg': 'Response Processing Error'},
+    ErrorCodes.YookassaApiError: {'code': 4511, 'msg': 'Yookassa Api Error'},
     ErrorCodes.InternalError: {'code': 5000, 'msg': 'Internal Server Error'},
-    ErrorCodes.DbError: {'code': 5002, 'msg': 'Bad Gateway'},
+    ErrorCodes.CoreOffline: {'code': 5021, 'msg': 'Core is offline'},
+    ErrorCodes.CoreFileUploadingError: {'code': 5022, 'msg': 'Core file uploading error'},
+    ErrorCodes.DbError: {'code': 5022, 'msg': 'Bad Gateway'},
 }
 
 HTTP_2_CUSTOM_ERR: dict[int, ErrorCodes] = {422: ErrorCodes.ValidationError}
