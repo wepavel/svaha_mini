@@ -1,5 +1,5 @@
 [project]
-name = "2024-09-08-svaha-mini-back"
+name = "svaha-mini-backend"
 version = "0.1.0"
 description = "Add your description here"
 dependencies = [
