@@ -9,6 +9,8 @@ wheels/
 # venv
 .venv
 
+.env
+
 # Default ignored files
 .idea/
 shelf/
