@@ -1,11 +1,11 @@
-import uvicorn
 from fastapi import FastAPI
+import uvicorn
 
 # from fastapi.openapi.utils import get_openapi
 from app.api import api_router
 from app.core.config import settings
-from app.core.openapi import custom_openapi
 from app.core.exceptions import exception_handler
+from app.core.openapi import custom_openapi
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

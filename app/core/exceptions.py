@@ -1,13 +1,10 @@
-import json
 from enum import Enum
+import json
 from typing import Any
 
-from fastapi import FastAPI
-from fastapi import Request
+from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
-from fastapi.exceptions import HTTPException
-from fastapi.exceptions import RequestValidationError
-
+from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -38,7 +35,7 @@ class ErrorCodes(Enum):
     #  4400: Validation Error
     ValidationError = 4400
     #  4401-4500: General Validation Errors
-
+    WrongFormat = 4411
     #  4501 - 4508: API and Request Errors
     Unauthorized = 4501
     AuthorizeError = 4502
@@ -59,17 +56,14 @@ class ErrorCodes(Enum):
 ERROR_CODES_MAP: dict[ErrorCodes, dict[str, Any]] = {
     ErrorCodes.BadRequest: {'code': 4000, 'msg': 'Bad Request'},
     ErrorCodes.CouldNotValidateUserCreds: {'code': 4021, 'msg': 'Could not validate credentials: ValidationError'},
-    ErrorCodes.UserExpiredSignatureError: {'code': 4022, 'msg': 'Could not validate credentials: ExpiredSignatureError'},
-    ErrorCodes.IncorrUserCreds: {
-        'code': 4023,
-        'msg': 'Incorrect login or password'
+    ErrorCodes.UserExpiredSignatureError: {
+        'code': 4022,
+        'msg': 'Could not validate credentials: ExpiredSignatureError',
     },
+    ErrorCodes.IncorrUserCreds: {'code': 4023, 'msg': 'Incorrect login or password'},
     ErrorCodes.NotAuthenticated: {'code': 4030, 'msg': 'Not authenticated'},
     ErrorCodes.InactiveUser: {'code': 4032, 'msg': 'Inactive user'},
-    ErrorCodes.UserRegistrationForbidden: {
-        'code': 4033,
-        'msg': 'Open user registration is forbidden on this server'
-    },
+    ErrorCodes.UserRegistrationForbidden: {'code': 4033, 'msg': 'Open user registration is forbidden on this server'},
     ErrorCodes.UserNotExists: {'code': 4035, 'msg': 'The user with this username does not exist in the system'},
     ErrorCodes.UserExists: {'code': 4036, 'msg': 'The user already exists in the system'},
     ErrorCodes.ProjectLocked: {'code': 4041, 'msg': 'Project locked'},
@@ -81,7 +75,11 @@ ERROR_CODES_MAP: dict[ErrorCodes, dict[str, Any]] = {
     ErrorCodes.TaskAlreadyExists: {'code': 4062, 'msg': 'Task already exists'},
     ErrorCodes.TooManyRequestsError: {'code': 4301, 'msg': 'Too Many Requests'},
     ErrorCodes.ValidationError: {'code': 4400, 'msg': 'Validation error'},
-    ErrorCodes.Unauthorized: {'code': 4501, 'msg': 'Sorry, you are not allowed to access this service: UnauthorizedRequest'},
+    ErrorCodes.WrongFormat: {'code': 4411, 'msg': 'Wrong format'},
+    ErrorCodes.Unauthorized: {
+        'code': 4501,
+        'msg': 'Sorry, you are not allowed to access this service: UnauthorizedRequest',
+    },
     ErrorCodes.AuthorizeError: {'code': 4502, 'msg': 'Authorization error'},
     ErrorCodes.ForbiddenError: {'code': 4503, 'msg': 'Forbidden'},
     ErrorCodes.NotFoundError: {'code': 4504, 'msg': 'Not Found'},

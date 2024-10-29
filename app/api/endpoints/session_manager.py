@@ -1,26 +1,19 @@
 import time
 from typing import Any
 
-from fastapi import APIRouter
-from fastapi import Cookie
+from fastapi import APIRouter, Cookie
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
-from app.core.exceptions import EXC
-from app.core.exceptions import ErrorCodes
+from app.core.exceptions import EXC, ErrorCodes
 from app.core.utils import generate_session_id
-from app.models.session import Session
-from app.models.session import SessionPublic
+from app.models.session import Session, SessionPublic
 from app.services.processing import send_to_queue
-from app.services.redis_service import TaskStatus
-from app.services.redis_service import redis_service
+from app.services.redis_service import TaskStatus, redis_service
 
 # from test_worker import redis
 
 router = APIRouter()
-
-# Mock database
-# session_db = {}
 
 
 async def get_average_processing_time() -> int:
@@ -66,7 +59,7 @@ async def create_task(
     """
     position = await redis_service.get_position(session_id)
     if position is not None:
-        raise EXC(ErrorCodes.Tas)
+        raise EXC(ErrorCodes.TaskAlreadyExists)
     await send_to_queue(
         {
             'session_id': session_id,
@@ -84,7 +77,7 @@ async def get_status(session_id: str | None = Cookie(None)) -> Any:
     """
     status = await redis_service.get_status(session_id)  # redis.get(f"status:{session_id}")
     if not status:
-        raise EXC(4000, 'Task not found')
+        raise EXC(ErrorCodes.TaskNotFound)
 
     position = await redis_service.get_position(session_id)
 
@@ -127,7 +120,7 @@ async def exc_test():
     Test exception
     """
 
-    raise EXC(ErrorCodes.IncorrCreds)
+    raise EXC(ErrorCodes.IncorrUserCreds)
 
     # json_compatible_item_data = jsonable_encoder('Exception test')
 

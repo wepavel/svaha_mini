@@ -1,8 +1,6 @@
 from datetime import datetime
-from typing import Any
-from typing import AsyncGenerator
-from unittest.mock import AsyncMock
-from unittest.mock import patch
+from typing import Any, AsyncGenerator
+from unittest.mock import AsyncMock, patch
 
 import pytest
 

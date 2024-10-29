@@ -1,8 +1,7 @@
 import os
 
 from pydantic import ValidationError
-from pydantic_settings import BaseSettings
-from pydantic_settings import SettingsConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -26,6 +25,8 @@ class Settings(BaseSettings):
     S3_ACCESS_KEY: str = os.getenv('S3_ACCESS_KEY', 'JFEqWll3xGzEkLNphAwL')
     S3_SECRET_KEY: str = os.getenv('S3_SECRET_KEY', 'xNWURfRimh4tqLemXgEelc2dbUkOG7Krqg0aakrI')
     S3_BUCKET_NAME: str = os.getenv('S3_BUCKET_NAME', 'svaha-mini')
+    S3_REGION_NAME: str = os.getenv('S3_REGION_NAME', 'eu-west-1')
+
     RABBITMQ_URL: str = os.getenv('RABBITMQ_URL', 'amqp://admin:administrator@10.244.15.120/')
     # REDIS_URL: str = os.getenv('REDIS_URL', 'redis://10.244.183.218:6379')
     RABBITMQ_LOGIN: str = os.getenv('RABBITMQ_LOGIN', 'admin')
