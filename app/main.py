@@ -1,7 +1,7 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
-# from fastapi.openapi.utils import get_openapi
 from app.api import api_router
 from app.core.config import settings
 from app.core.exceptions import exception_handler
@@ -13,23 +13,16 @@ app = FastAPI(
 )
 
 custom_openapi(app)
-
-# exception_handler(app)
-# exception_handler1(app)
 exception_handler(app)
 
-# app.add_exception_handler(RequestValidationError, validation_exception_handler)
-# exception_handler2(app)
-# exception_handler3(app)
-# exception_handler(app)
 
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=[str(origin) for origin in settings.BACKEND_CORS_ORIGINS],
-#     allow_credentials=True,
-#     allow_methods=['*'],
-#     allow_headers=['*']
-# )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[str(origin).rstrip('/') for origin in settings.BACKEND_CORS_ORIGINS],
+    allow_credentials=True,
+    allow_methods=['*'],
+    allow_headers=['*'],
+)
 
 app.include_router(api_router)
 

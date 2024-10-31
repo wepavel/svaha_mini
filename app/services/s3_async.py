@@ -11,6 +11,10 @@ from botocore.exceptions import ClientError
 from app.core.config import settings
 from app.core.logger import logger
 
+from asyncio import get_event_loop
+
+from app.services.s3 import s3_manager
+
 logging.getLogger('aioboto3').setLevel(logging.INFO)
 logging.getLogger('botocore').setLevel(logging.INFO)
 
@@ -25,7 +29,7 @@ class S3Manager:
         session = aioboto3.Session()
 
         if use_minio:
-            self.s3 = session.client(
+            self.s3_client = session.client(
                 's3',
                 endpoint_url=settings.S3_ENDPOINT,
                 aws_access_key_id=s3_access_key_id,
@@ -40,6 +44,19 @@ class S3Manager:
                 aws_access_key_id=s3_access_key_id,
                 aws_secret_access_key=s3_secret_access_key,
             )
+        loop = get_event_loop()
+        loop.run_until_complete(self.check_s3_connection())
+        # self.check_connection()
+
+
+    async def check_s3_connection(self) -> None:
+        try:
+            async with self.s3_client as client:
+                await client.head_bucket(Bucket=self.bucket_name)
+            print("Подключение к серверу S3 успешно.")
+        except ClientError:
+            print("Ошибка подключения к серверу S3. Пожалуйста, проверьте настройки соединения.")
+
 
     @staticmethod
     def handle_s3_exceptions(func):
@@ -212,3 +229,6 @@ class S3Manager:
         archive_path = os.path.join(local_path, base_name + '.zip')
         await self.download_file(file_key, archive_path)
         await self.unzip_to_directory(archive_path, local_path, create_subdir=create_subdir)
+
+
+s3 = S3Manager()
