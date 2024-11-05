@@ -1,3 +1,5 @@
+from multiprocessing import cpu_count
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
@@ -26,5 +28,11 @@ app.add_middleware(
 
 app.include_router(api_router)
 
+
+def get_worker_count() -> int:
+    return cpu_count()
+
+
 if __name__ == '__main__':
-    uvicorn.run(app, host=str(settings.HOST), port=settings.PORT)
+    worker_count = get_worker_count()
+    uvicorn.run(app, host=str(settings.HOST), port=settings.PORT, log_config='./app/log_config.json')

@@ -31,11 +31,13 @@ class Settings(BaseSettings):
     S3_REGION_NAME: str = os.getenv('S3_REGION_NAME', 'eu-west-1')
 
     RABBITMQ_URL: str = os.getenv('RABBITMQ_URL', 'amqp://username:password@127.0.0.1/')
+    RABBITMQ_HOST: str = os.getenv('RABBITMQ_HOST', '127.0.0.1')
+    RABBITMQ_PORT: int = os.getenv('RABBITMQ_PORT', 5672)
     RABBITMQ_LOGIN: str = os.getenv('RABBITMQ_LOGIN', 'username')
     RABBITMQ_PASSWORD: str = os.getenv('RABBITMQ_PASSWORD', 'password')
 
-    REDIS_HOST: str = os.getenv('REDIS_URL', '10.244.15.120')
-    REDIS_PORT: int = os.getenv('REDIS_URL', 6380)
+    REDIS_HOST: str = os.getenv('REDIS_URL', '127.0.0.1')
+    REDIS_PORT: int = os.getenv('REDIS_URL', 6379)
     REDIS_LOGIN: str = os.getenv('REDIS_LOGIN', 'username')
     REDIS_PASSWORD: str = os.getenv('REDIS_PASSWORD', 'password')
 

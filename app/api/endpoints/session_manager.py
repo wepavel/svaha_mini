@@ -8,7 +8,7 @@ from app.core.config import settings
 from app.core.exceptions import EXC, ErrorCodes
 from app.core.utils import generate_session_id
 from app.models.session import Session, SessionPublic
-from app.services.processing import send_to_queue
+from app.services.processing import r_queue
 from app.services.redis_service import TaskStatus, redis_service
 
 # from test_worker import redis
@@ -60,7 +60,7 @@ async def create_task(
     position = await redis_service.get_position(session_id)
     if position is not None:
         raise EXC(ErrorCodes.TaskAlreadyExists)
-    await send_to_queue(
+    await r_queue.send_to_queue(
         {
             'session_id': session_id,
             'task_id': task_id,

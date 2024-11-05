@@ -9,7 +9,6 @@ wheels/
 # venv
 .venv
 
-.env
 
 # Default ignored files
 .idea/
@@ -23,3 +22,4 @@ httpRequests/
 dataSources/
 dataSources.local.xml
 
+.env

@@ -3,28 +3,27 @@ from datetime import datetime
 import aioredis
 
 from app.core.config import settings
+from app.core.logging import logger
 from app.models.task import TaskStatus
-from asyncio import get_event_loop
+
 
 class Redis:
     def __init__(self) -> None:
-        self.redis: aioredis.Redis = aioredis.Redis(
+        self.redis = aioredis.Redis(
             host=settings.REDIS_HOST,
             port=settings.REDIS_PORT,
             username=settings.REDIS_LOGIN,
             password=settings.REDIS_PASSWORD,
             decode_responses=True,
         )
-
-        loop = get_event_loop()
-        loop.run_until_complete(self.check_redis_connection())
+        logger.info('Just test')
+        print('Hello world')
 
     async def check_redis_connection(self) -> None:
         try:
             await self.redis.ping()
         except ConnectionError:
-            print("Error connecting to Redis server. Please check the connection settings.")
-
+            logger.error('Error connecting to Redis server. Please check the connection settings.')
 
     async def create_task(self, session_id: str) -> None:
         async with self.redis.pipeline() as pipe:

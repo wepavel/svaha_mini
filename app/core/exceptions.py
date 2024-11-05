@@ -168,6 +168,7 @@ def exception_handler(app: FastAPI) -> None:
             'endpoint': request.url.path,
             'notification': error.get('notification', False),
             'redirect': error.get('redirect', False),
+            'reason': error.get('details', {}).get('reason', None),
         }
         return create_error_response(error.get('msg', 'An error occurred'), exc.status_code, details)
 

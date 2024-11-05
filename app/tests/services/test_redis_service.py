@@ -110,3 +110,24 @@ async def test_clear_storage(redis_service: Redis) -> None:
     await redis_service.clear_storage()
 
     redis_service.redis.flushdb.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_check_redis_connection(redis_service: Redis) -> None:
+    redis_service.redis.ping = AsyncMock()
+
+    await redis_service.check_redis_connection()
+
+    redis_service.redis.ping.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_check_redis_connection_error(redis_service: Redis) -> None:
+    redis_service.redis.ping = AsyncMock(side_effect=ConnectionError)
+
+    with patch('app.services.redis_service.logger') as mock_logger:
+        await redis_service.check_redis_connection()
+
+        mock_logger.error.assert_called_once_with(
+            'Error connecting to Redis server. Please check the connection settings.'
+        )

@@ -7,7 +7,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 from app.core.config import settings
-from app.core.logger import logger
+from app.core.logging import logger
 
 logging.getLogger('boto3').setLevel(logging.INFO)
 logging.getLogger('botocore').setLevel(logging.INFO)
