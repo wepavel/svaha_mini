@@ -3,13 +3,11 @@
     "disable_existing_loggers": false,
     "formatters": {
         "default": {
-            "()": "uvicorn.logging.DefaultFormatter",
-            "fmt": "%(asctime).19s %(levelprefix)s %(message)s",
+            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
             "use_colors": false
         },
         "access": {
-            "()": "uvicorn.logging.AccessFormatter",
-            "fmt": "%(asctime).19s %(levelprefix)s %(client_addr)s \"%(request_line)s\" %(status_code)s",
+            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
             "use_colors": false
         }
     },

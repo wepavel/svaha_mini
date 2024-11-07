@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.models.task import TaskStatus
-from app.services.redis_service import Redis
+from app.app.models.task import TaskStatus
+from app.app.services.redis_service import Redis
 
 
 @pytest.fixture

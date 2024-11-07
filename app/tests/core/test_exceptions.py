@@ -2,8 +2,8 @@ from fastapi import HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
 
-from app.core.exceptions import ERROR_CODES_MAP, EXC, ErrorCodes
-from app.main import app
+from app.app.core.exceptions import ERROR_CODES_MAP, EXC, ErrorCodes
+from app.app.main import app
 
 # Create a test client
 client = TestClient(app)

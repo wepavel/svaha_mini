@@ -1,0 +1,17 @@
+version: '3.9'
+services:
+  backend:
+    ports:
+      - '8001:8001'  # Host
+
+
+    volumes:
+      - .:/app  # Mount current dir into app
+
+    build:
+      context: ./
+      args:
+        INSTALL_DEV: ${INSTALL_DEV-true}
+
+    tty: true
+    command: python ./app/main.py

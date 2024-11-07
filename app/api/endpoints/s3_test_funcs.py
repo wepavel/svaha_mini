@@ -1,23 +1,13 @@
-from fastapi import APIRouter, FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, UploadFile, File, Form
 from fastapi.responses import JSONResponse, StreamingResponse
 from app.services.s3_async import s3
-import os
-from typing import List, Dict
+from typing import Dict
 from app.core.exceptions import EXC, ErrorCodes
 from io import BytesIO
 
 router = APIRouter()
 
 
-# @router.post("/upload/")
-# async def upload_file(file: UploadFile = File(...), key: str = "") -> Dict[str, str]:
-#     try:
-#         contents = await file.read()
-#         file_stream = BytesIO(contents)
-#         await s3.upload_file(file_stream, key or file.filename)
-#         return {"message": "File uploaded successfully"}
-#     except Exception as e:
-#         raise EXC(ErrorCodes.CoreFileUploadingError, details={'reason': str(e)})
 @router.post("/upload/")
 async def upload_file(file: UploadFile = File(...), key: str = "") -> Dict[str, str]:
     try:
@@ -29,14 +19,6 @@ async def upload_file(file: UploadFile = File(...), key: str = "") -> Dict[str, 
     except Exception as e:
         raise EXC(ErrorCodes.CoreFileUploadingError, details={'reason': str(e)})
 
-# @router.get("/download/")
-# async def download_file(key: str) -> Dict[str, str]:
-#     try:
-#         local_path = f"/tmp/{key}"
-#         await s3.download_file(key, local_path)
-#         return {"message": f"File downloaded to {local_path}"}
-#     except Exception as e:
-#         raise EXC(ErrorCodes.CoreFileUploadingError, details={'reason': str(e)})
 
 @router.get("/download/")
 async def download_file(key: str):

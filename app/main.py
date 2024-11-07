@@ -1,3 +1,4 @@
+from imp import reload
 from multiprocessing import cpu_count
 
 from fastapi import FastAPI
@@ -35,4 +36,4 @@ def get_worker_count() -> int:
 
 if __name__ == '__main__':
     worker_count = get_worker_count()
-    uvicorn.run(app, host=str(settings.HOST), port=settings.PORT, log_config='./app/log_config.json')
+    uvicorn.run(app, host=str(settings.HOST), port=settings.PORT, log_config='./log_config.json')  # ,log_config='./app/log_config.json'

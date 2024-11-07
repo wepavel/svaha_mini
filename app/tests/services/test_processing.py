@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock, patch
 from aio_pika.abc import AbstractRobustConnection
 import pytest
 
-from app.core.config import settings
-from app.services.processing import RQueue
-from app.services.redis_service import Redis
+from app.app.core.config import settings
+from app.app.services.processing import RQueue
+from app.app.services.redis_service import Redis
 
 
 @pytest.fixture

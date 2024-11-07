@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
-from app.api.endpoints import file_manager, s3_test_funcs, session_manager
+from app.api.endpoints import session_manager
+from app.api.endpoints import file_manager, s3_test_funcs
 
 api_router = APIRouter()
 api_router.include_router(file_manager.router, prefix='/main', tags=['main'])
