@@ -1,4 +1,4 @@
-from app.app.core.config import Settings
+from app.core.config import Settings
 
 
 def test_settings():

@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.app.models.task import TaskStatus
-from app.app.services.redis_service import Redis
+from app.models.task import TaskStatus
+from app.services.redis_service import Redis
 
 
 @pytest.fixture
@@ -126,7 +126,8 @@ async def test_check_redis_connection_error(redis_service: Redis) -> None:
     redis_service.redis.ping = AsyncMock(side_effect=ConnectionError)
 
     with patch('app.services.redis_service.logger') as mock_logger:
-        await redis_service.check_redis_connection()
+        with pytest.raises(ConnectionError):
+            await redis_service.check_redis_connection()
 
         mock_logger.error.assert_called_once_with(
             'Error connecting to Redis server. Please check the connection settings.'

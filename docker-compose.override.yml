@@ -4,9 +4,11 @@ services:
     ports:
       - '8001:8001'  # Host
 
-
     volumes:
       - .:/app  # Mount current dir into app
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - TERM=`xterm-256color`
 
     build:
       context: ./
@@ -14,4 +16,4 @@ services:
         INSTALL_DEV: ${INSTALL_DEV-true}
 
     tty: true
-    command: python ./app/main.py
+    command: /app/root/start-reload.sh

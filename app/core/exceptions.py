@@ -126,6 +126,8 @@ def exception_handler(app: FastAPI) -> None:
         redirect = details.get('redirect', False)
         notification = details.get('notification', False)
         details.pop('redirect', None), details.pop('notification', None)
+        if details.get('reason') is None:
+            details.pop('reason', None)
 
         if details.get('custom', False):
             inner_code = details.get('code')

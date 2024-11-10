@@ -16,14 +16,14 @@ class Redis:
             password=settings.REDIS_PASSWORD,
             decode_responses=True,
         )
-        logger.info('Just test')
-        print('Hello world')
 
     async def check_redis_connection(self) -> None:
         try:
             await self.redis.ping()
-        except ConnectionError:
+            logger.info('Successfully connected to Redis.')
+        except ConnectionError as e:
             logger.error('Error connecting to Redis server. Please check the connection settings.')
+            raise e
 
     async def create_task(self, session_id: str) -> None:
         async with self.redis.pipeline() as pipe:

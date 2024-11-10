@@ -4,15 +4,16 @@ version = "0.1.0"
 description = "Add your description here"
 dependencies = [
     "fastapi>=0.114.0",
-    "uvicorn>=0.30.6",
+    "uvicorn>=0.32.0",
     "pydantic-settings>=2.4.0",
     "aio-pika>=9.4.3",
-    "aioredis>=2.0.1",
-    "redis>=5.0.8",
     "ulid-py>=1.1.0",
     "boto3>=1.35.18",
     "aioboto3>=13.2.0",
     "python-multipart>=0.0.17",
+    "matplotlib>=3.9.2",
+    "tenacity>=9.0.0",
+    "aioredis>=2.0.1",
 ]
 readme = "README.md"
 requires-python = ">= 3.8"
@@ -31,6 +32,24 @@ dev-dependencies = [
     "pytest-asyncio>=0.24.0",
     "asynctest>=0.13.0",
 ]
+#virtual_env = "./venv5"
+
+#[tool.uv]
+#venvs = ["env1", "env2"]
+
+#[tool.uv.venvs.env1]
+#python="3.12"
+#deps=[
+#    "env1_dep1",
+#    "env1_dep2"
+#]
+
+#[tool.uv.venvs.env2]
+#python="3.10"
+#deps=[
+#    "env2_dep1",
+#    "env2_dep2"
+#]
 
 [tool.hatch.metadata]
 allow-direct-references = true

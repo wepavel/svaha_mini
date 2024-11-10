@@ -4,8 +4,8 @@ import json
 import aio_pika
 import boto3
 
-from app.app.core.config import settings
-from app.app.services.redis_service import redis_service
+from app.core.config import settings
+from app.services.redis_service import redis_service
 
 s3_target = boto3.resource(
     's3',

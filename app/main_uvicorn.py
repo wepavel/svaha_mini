@@ -1,6 +1,5 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
 
 from app.api import api_router
 from app.core.config import settings
@@ -25,9 +24,3 @@ app.add_middleware(
 )
 
 app.include_router(api_router)
-
-
-if __name__ == '__main__':
-    uvicorn.run(
-        app, host=str(settings.HOST), port=settings.PORT, log_config='./log_config.json'
-    )  # ,log_config='./app/log_config.json'
