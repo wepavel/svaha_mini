@@ -22,7 +22,7 @@ class Settings(BaseSettings):
 
     PROJECT_NAME: str = 'Default Project Name'
 
-    SESSION_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 seconds
+    SESSION_EXPIRE_MINUTES: int = 60 * 24 * 10  # 10 days
 
     S3_ENDPOINT: str = os.getenv('S3_ENDPOINT', 'http://127.0.0.1:9000')
     S3_ACCESS_KEY: str = os.getenv('S3_ACCESS_KEY')

@@ -52,6 +52,9 @@ botocore==1.35.18
 certifi==2024.8.30
     # via httpcore
     # via httpx
+    # via requests
+charset-normalizer==3.4.0
+    # via requests
 click==8.1.7
     # via black
     # via uvicorn
@@ -78,6 +81,7 @@ httpx==0.27.2
 idna==3.8
     # via anyio
     # via httpx
+    # via requests
     # via yarl
 iniconfig==2.0.0
     # via pytest
@@ -129,6 +133,8 @@ python-dotenv==1.0.1
     # via pydantic-settings
 python-multipart==0.0.17
     # via svaha-mini-backend
+requests==2.32.3
+    # via svaha-mini-backend
 ruff==0.6.5
 s3transfer==0.10.2
     # via boto3
@@ -158,6 +164,7 @@ ulid-py==1.1.0
     # via svaha-mini-backend
 urllib3==2.2.3
     # via botocore
+    # via requests
 uvicorn==0.32.0
     # via svaha-mini-backend
 wrapt==1.16.0

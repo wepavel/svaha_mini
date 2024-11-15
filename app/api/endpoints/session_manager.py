@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.exceptions import EXC, ErrorCodes
-from app.core.utils import generate_session_id
+from app.core.utils import generate_id
 from app.models.session import Session, SessionPublic
 from app.services.processing import r_queue
 from app.services.redis_service import TaskStatus, redis_service
@@ -25,24 +25,18 @@ async def get_session(session_id: str | None = Cookie(None)) -> Any:
     """
     Get session id and set it into cookie
     """
-    # if session_id is None:
-    session_id = generate_session_id()
-
-    # response = JSONResponse(
-    #     content={
-    #         # "access_token": security.create_access_token(user_id, expires_delta=access_token_expires),
-    #         # "token_type": "bearer"
-    #     }
-    # )
     response = JSONResponse(content={})
-    response.set_cookie(
-        key='session_id',
-        value=session_id,
-        httponly=True,
-        samesite='none',
-        secure=True,
-        max_age=settings.SESSION_EXPIRE_MINUTES * 60,
-    )
+    if session_id is None:
+        session_id = generate_id()
+
+        response.set_cookie(
+            key='session_id',
+            value=session_id,
+            httponly=True,
+            samesite='none',
+            secure=True,
+            max_age=settings.SESSION_EXPIRE_MINUTES,
+        )
 
     # if session_id not in session_db:
     #     raise HTTPException(status_code=404, detail="Session not found")

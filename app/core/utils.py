@@ -1,5 +1,5 @@
 import ulid
 
 
-def generate_session_id() -> str:
+def generate_id() -> str:
     return ulid.new().str

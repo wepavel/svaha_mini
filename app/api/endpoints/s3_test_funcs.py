@@ -1,43 +1,61 @@
+from importlib.metadata import files
 from io import BytesIO
 from typing import Dict
 
 from fastapi import APIRouter, File, Form, UploadFile
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse, RedirectResponse
 
 from app.core.exceptions import EXC, ErrorCodes
 from app.services.s3_async import s3
+from urllib.parse import quote
 
 router = APIRouter()
 
 
+
+
 @router.post('/upload/')
-async def upload_file(file: UploadFile = File(...), key: str = '') -> Dict[str, str]:
+async def upload_file(key: str = '', file: UploadFile = File(...)) -> Dict[str, str]:
     try:
         contents = await file.read()
         file_stream = BytesIO(contents)
         file_stream.seek(0)
-        await s3.upload_file(file_stream, key or file.filename)
+        await s3.upload_bytes_file(file_stream, key or file.filename)
         return {'message': 'File uploaded successfully'}
     except Exception as e:
         raise EXC(ErrorCodes.CoreFileUploadingError, details={'reason': str(e)})
 
 
-@router.get('/download/')
-async def download_file(key: str):
+@router.get('/download/{key:path}')
+async def download_file(key: str) -> StreamingResponse:
     try:
-        file_stream = BytesIO()
-        await s3.download_file(file_stream, key)
-        file_stream.seek(0)
+        file_content = await s3.download_bytes_file(key)
+        file_info = await s3.get_file_info(key)
+        encoded_filename = quote(key.split('/')[-1])
+
         return StreamingResponse(
-            file_stream,
-            media_type='application/octet-stream',
-            headers={'Content-Disposition': f'attachment;filename={key}'},
+            content=file_content,
+            media_type=file_info['ContentType'],
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}",
+                "Content-Type": file_info['ContentType'],
+                "Content-Length": str(file_content.getbuffer().nbytes)
+            }
         )
+
     except Exception as e:
         raise EXC(ErrorCodes.CoreFileUploadingError, details={'reason': str(e)})
 
+@router.get('/get_file_url/{key:path}')
+async def get_file_url(key: str) -> RedirectResponse:
+    try:
+        presigned_url = await s3.get_file_url(key)
 
-@router.delete('/delete/')
+        return RedirectResponse(url=presigned_url, status_code=303)
+    except Exception as e:
+        raise EXC(ErrorCodes.CoreFileUploadingError, details={'reason': str(e)})
+
+@router.delete('/delete/{key:path}')
 async def delete_file(key: str) -> Dict[str, str]:
     try:
         await s3.delete_object(key)
@@ -45,6 +63,14 @@ async def delete_file(key: str) -> Dict[str, str]:
     except Exception as e:
         raise EXC(ErrorCodes.CoreFileUploadingError, details={'reason': str(e)})
 
+
+@router.delete('/delete_dir/{key:path}')
+async def delete_dir(key: str) -> Dict[str, str]:
+    try:
+        await s3.delete_dir(key)
+        return {'message': 'Directory deleted successfully'}
+    except Exception as e:
+        raise EXC(ErrorCodes.CoreFileUploadingError, details={'reason': str(e)})
 
 @router.get('/list/')
 async def list_files(prefix: str = '') -> JSONResponse:

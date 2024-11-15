@@ -8,7 +8,7 @@ class SessionPublic(BaseModel):
 
 class Session(SessionPublic):
     status: str
-    download_url: str = None
+    download_url: str | None = None
     estimated_time: int | None = None
     completed_timestamp: float | None = None
     timestamp: float = None

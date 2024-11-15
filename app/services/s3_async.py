@@ -1,3 +1,4 @@
+from ast import Bytes
 from functools import wraps
 from io import BytesIO
 import logging
@@ -9,6 +10,7 @@ import aioboto3
 from botocore import client as botocore_client
 from botocore.client import BaseClient
 from botocore.exceptions import ClientError
+import io
 
 from app.core.config import settings
 from app.core.logging import logger
@@ -20,7 +22,7 @@ logging.getLogger('botocore').setLevel(logging.INFO)
 class S3Manager:
     def __init__(self, local: bool = True) -> None:
         self.local = local
-        self.bucket_name = settings.S3_BUCKET_NAME
+        # self.bucket_name = settings.S3_BUCKET_NAME
         self.region_name = settings.S3_REGION_NAME
         self.s3_access_key_id = settings.S3_ACCESS_KEY
         self.s3_secret_access_key = settings.S3_SECRET_KEY
@@ -30,11 +32,21 @@ class S3Manager:
     async def get_client(self) -> BaseClient:
         if self.local:
             # If use minio
+            # return self.session.client(
+            #     's3',
+            #     region_name=self.region_name,
+            #     endpoint_url=settings.S3_ENDPOINT,
+            #     aws_access_key_id=self.s3_access_key_id,
+            #     aws_secret_access_key=self.s3_secret_access_key,
+            #     config=botocore_client.Config(signature_version='s3v4'),
+            #     verify=False,
+            # )
             return self.session.client(
                 's3',
+                region_name=self.region_name,
                 endpoint_url=settings.S3_ENDPOINT,
-                aws_access_key_id=self.s3_access_key_id,
-                aws_secret_access_key=self.s3_secret_access_key,
+                aws_access_key_id='D14Na_5010',
+                aws_secret_access_key='MoSh0nKa_Grishi_14let',
                 config=botocore_client.Config(signature_version='s3v4'),
                 verify=False,
             )
@@ -45,10 +57,11 @@ class S3Manager:
             aws_secret_access_key=self.s3_secret_access_key,
         )
 
-    async def check_s3_connection(self) -> None:
+    async def check_s3_connection(self, bucket_name: str) -> None:
         try:
             async with await self.get_client() as client:
-                await client.head_bucket(Bucket=self.bucket_name)
+                # await client.head_bucket(Bucket=self.bucket_name)
+                await client.head_bucket(Bucket=bucket_name)
                 logger.info('Successfully connected to the S3 server.')
         except ClientError as e:
             logger.error('Failed to connect to the S3 server. Please check the connection settings.')
@@ -70,47 +83,76 @@ class S3Manager:
         return wrapper
 
     @handle_s3_exceptions
-    async def download_file(self, file_key: str, local_path: str) -> None:
+    async def upload_file(self, local_path: str, file_key: str, bucket_name: str) -> None:
         async with await self.get_client() as client:
-            await client.download_file(self.bucket_name, file_key, local_path)
-
-    # @handle_s3_exceptions
-    # async def upload_file(self, file: str | bytes, file_key: str) -> None:
-    #     async with self.s3_client as client:
-    #         await client.upload_file(file, self.bucket_name, file_key)
+            # client.upload_file(local_path, self.bucket_name, file_key)
+            await client.upload_file(local_path, bucket_name, file_key)
 
     @handle_s3_exceptions
-    async def upload_file(self, file: str | bytes, file_key: str) -> None:
+    async def upload_bytes_file(self, file: BytesIO, file_key: str, bucket_name: str) -> None:
         async with await self.get_client() as client:
-            if isinstance(file, BytesIO):
-                await client.upload_fileobj(file, self.bucket_name, file_key)
-            elif isinstance(file, str):
-                await client.upload_file(file, self.bucket_name, file_key)
+             # await client.upload_fileobj(file, self.bucket_name, file_key)
+            await client.upload_fileobj(file, bucket_name, file_key)
 
     @handle_s3_exceptions
-    async def delete_object(self, file_key: str) -> None:
+    async def download_file(self, file_key: str, local_path: str, bucket_name: str) -> None:
         async with await self.get_client() as client:
-            await client.delete_object(Bucket=self.bucket_name, Key=file_key)
+            # await client.download_file(self.bucket_name, file_key, local_path)
+            await client.download_file(bucket_name, file_key, local_path)
 
-    async def delete_dir(self, dir_key: str) -> None:
+    @handle_s3_exceptions
+    async def download_bytes_file(self, file_key: str, bucket_name: str):
         async with await self.get_client() as client:
-            response = await client.list_objects_v2(Bucket=self.bucket_name, Prefix=dir_key)
+            buffer = io.BytesIO()
+            # await client.download_fileobj(self.bucket_name, file_key, buffer)
+            await client.download_fileobj(bucket_name, file_key, buffer)
+            buffer.seek(0)
+            return buffer
+
+
+
+    @handle_s3_exceptions
+    async def get_file_url(self, file_key: str, bucket_name: str) -> str:
+        async with await self.get_client() as client:
+            filename = file_key.split('/')[-1]
+            content_disposition = f'attachment; filename={filename};'
+            params = {
+                # 'Bucket': self.bucket_name,
+                'Bucket': bucket_name,
+                'Key': file_key,
+                'ResponseContentDisposition': content_disposition,
+            }
+            return await client.generate_presigned_url('get_object', Params=params, ExpiresIn=3600)
+
+
+    @handle_s3_exceptions
+    async def delete_object(self, file_key: str, bucket_name: str) -> None:
+        async with await self.get_client() as client:
+            # await client.delete_object(Bucket=self.bucket_name, Key=file_key)
+            await client.delete_object(Bucket=bucket_name, Key=file_key)
+
+    async def delete_dir(self, dir_key: str, bucket_name: str) -> None:
+        async with await self.get_client() as client:
+            # response = await client.list_objects_v2(Bucket=self.bucket_name, Prefix=dir_key)
+            response = await client.list_objects_v2(Bucket=bucket_name, Prefix=dir_key)
         if 'Contents' in response:
             for obj in response['Contents']:
                 file_key = obj['Key']
                 if not file_key.endswith('/'):
-                    await self.delete_object(file_key)
+                    await self.delete_object(file_key, bucket_name)
 
-    async def download_files_from_dir(self, *, dir_key: str, local_dir: str, overwrite: bool = False) -> None:
+    async def download_files_from_dir(self, *, dir_key: str, local_dir: str, bucket_name: str, overwrite: bool = False) -> None:
         """Download all files in a directory from S3 to a local directory
 
         :param dir_key: the key of the directory in S3, e.g. 'foo/bar/'
         Note: we assume that dir_key ends with a slash
         :param local_dir: the path of the local directory to save the files, e.g. '/tmp/foo/bar/'
+        :param bucket_name: the name of the S3 bucket
         :param overwrite: overwrite file if exists or pass
         """
         with await self.get_client() as client:
-            response = await client.list_objects_v2(Bucket=self.bucket_name, Prefix=dir_key)
+            # response = await client.list_objects_v2(Bucket=self.bucket_name, Prefix=dir_key)
+            response = await client.list_objects_v2(Bucket=bucket_name, Prefix=dir_key)
         if 'Contents' in response:
             os.makedirs(local_dir, exist_ok=True)
             for obj in response['Contents']:
@@ -119,13 +161,14 @@ class S3Manager:
                     file_name = os.path.basename(file_key)
                     local_path = os.path.join(local_dir, file_name)
                     if not os.path.exists(local_path) or overwrite:
-                        await self.download_file(file_key, local_path)
+                        await self.download_file(file_key, local_path, bucket_name)
 
-    async def upload_files_to_dir(self, *, local_dir: str, dir_key: str) -> None:
+    async def upload_files_to_dir(self, *, local_dir: str, dir_key: str, bucket_name: str) -> None:
         """Upload all files in a local directory to S3
 
         :param local_dir: the path of the local directory to upload the files, e.g. '/tmp/foo/bar/'
         :param dir_key: the key of the directory in S3, e.g. 'foo/bar/'
+        :param bucket_name: the name of the S3 bucket
         Note: we assume that dir_key ends with a slash
         Create the directory in S3 if it does not exist
         """
@@ -136,11 +179,12 @@ class S3Manager:
 
             file_key = os.path.join(dir_key, file_name)
             # Upload the file
-            await self.upload_file(local_path, file_key)
+            await self.upload_file(local_path, file_key, bucket_name)
 
-    async def list_objects(self, dir_key: str) -> list:
+    async def list_objects(self, dir_key: str, bucket_name: str) -> list:
         async with await self.get_client() as client:
-            response = await client.list_objects_v2(Bucket=self.bucket_name, Prefix=dir_key)
+            # response = await client.list_objects_v2(Bucket=self.bucket_name, Prefix=dir_key)
+            response = await client.list_objects_v2(Bucket=bucket_name, Prefix=dir_key)
         files_list = []
         if 'Contents' in response:
             for obj in response['Contents']:
@@ -150,9 +194,10 @@ class S3Manager:
                     files_list.append(file_name)
         return files_list
 
-    async def list_objects_with_date(self, dir_key: str) -> list:
+    async def list_objects_with_date(self, dir_key: str, bucket_name: str) -> list:
         async with await self.get_client() as client:
-            response = await client.list_objects_v2(Bucket=self.bucket_name, Prefix=dir_key)
+            # response = await client.list_objects_v2(Bucket=self.bucket_name, Prefix=dir_key)
+            response = await client.list_objects_v2(Bucket=bucket_name, Prefix=dir_key)
         files_list = []
         if 'Contents' in response:
             for obj in response['Contents']:
@@ -163,15 +208,17 @@ class S3Manager:
                     files_list.append({'file_name': file_name, 'last_modified': last_modified})
         return files_list
 
-    async def list_objects_full(self, dir_key: str = '') -> List[Dict[str, Any]]:
+    async def list_objects_full(self, bucket_name: str, dir_key: str = '') -> List[Dict[str, Any]]:
         async with await self.get_client() as client:
-            response = await client.list_objects_v2(Bucket=self.bucket_name, Prefix=dir_key)
+            # response = await client.list_objects_v2(Bucket=self.bucket_name, Prefix=dir_key)
+            response = await client.list_objects_v2(Bucket=bucket_name, Prefix=dir_key)
         return response.get('Contents', [])
 
     @handle_s3_exceptions
-    async def get_file_info(self, file_key: str) -> Dict[str, Any] | None:
+    async def get_file_info(self, file_key: str, bucket_name: str) -> Dict[str, Any] | None:
         async with await self.get_client() as client:
-            response = await client.head_object(Bucket=self.bucket_name, Key=file_key)
+            # response = await client.head_object(Bucket=self.bucket_name, Key=file_key)
+            response = await client.head_object(Bucket=bucket_name, Key=file_key)
         return response
 
     @staticmethod

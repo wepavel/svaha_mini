@@ -30,6 +30,8 @@ class ErrorCodes(Enum):
     #  4061 - 4081: Task Management Errors
     TaskNotFound = 4061
     TaskAlreadyExists = 4062
+    SessionNotFound = 4071
+    SessionAlreadyExists = 4072
     #  4301 - 4320: Resource and Limit Errors
     TooManyRequestsError = 4301
     #  4400: Validation Error
@@ -73,6 +75,8 @@ ERROR_CODES_MAP: dict[ErrorCodes, dict[str, Any]] = {
     ErrorCodes.InstrumentalTrackExists: {'code': 4045, 'msg': 'Instrumental track already exists'},
     ErrorCodes.TaskNotFound: {'code': 4061, 'msg': 'Task not found'},
     ErrorCodes.TaskAlreadyExists: {'code': 4062, 'msg': 'Task already exists'},
+    ErrorCodes.SessionNotFound: {'code': 4071, 'msg': 'Session not found'},
+    ErrorCodes.SessionAlreadyExists: {'code': 4072, 'msg': 'Session already exists'},
     ErrorCodes.TooManyRequestsError: {'code': 4301, 'msg': 'Too Many Requests'},
     ErrorCodes.ValidationError: {'code': 4400, 'msg': 'Validation error'},
     ErrorCodes.WrongFormat: {'code': 4411, 'msg': 'Wrong format'},

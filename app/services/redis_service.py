@@ -29,7 +29,11 @@ class Redis:
         async with self.redis.pipeline() as pipe:
             await pipe.rpush('processing_queue', session_id)
             await pipe.hset(
-                f'session:{session_id}', mapping={'status': TaskStatus.QUEUED, 'timestamp': datetime.now().timestamp()}
+                f'session:{session_id}',
+                mapping={
+                    'status': TaskStatus.QUEUED,
+                    'timestamp': datetime.now().timestamp()
+                }
             )
             await pipe.execute()
 
@@ -42,11 +46,28 @@ class Redis:
     async def get_completed_timestamp(self, session_id: str) -> float | None:
         return await self.redis.hget(f'session:{session_id}', 'completed_timestamp')
 
-    async def complete_task(self, session_id: str) -> None:
+    async def get_download_url(self, session_id: str) -> str | None:
+        return await self.redis.hget(f'session:{session_id}', 'download_url')
+
+    async def set_task_process(self, session_id: str) -> None:
         async with self.redis.pipeline() as pipe:
             await pipe.hset(
                 f'session:{session_id}',
-                mapping={'status': TaskStatus.COMPLETED, 'completed_timestamp': datetime.now().timestamp()},
+                mapping={
+                    'status': TaskStatus.IN_PROGRESS,
+                },
+            )
+            await pipe.execute()
+
+    async def complete_task(self, session_id: str, download_url: str) -> None:
+        async with self.redis.pipeline() as pipe:
+            await pipe.hset(
+                f'session:{session_id}',
+                mapping={
+                    'status': TaskStatus.COMPLETED,
+                    'completed_timestamp': datetime.now().timestamp(),
+                    'download_url': download_url
+                },
             )
             await pipe.lrem('processing_queue', 1, session_id)
             await pipe.execute()

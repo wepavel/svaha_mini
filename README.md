@@ -47,7 +47,7 @@ brew services stop redis
 #### Todo
 
 - [x] To Cum
-- [ ] Implement Minio (Local/Self-hosted S3)
+- [x] Implement Minio (Local/Self-hosted S3)
 - [ ] Instrumental upload
 - [ ] Vocal upload
 - [ ] Additional vocal upload

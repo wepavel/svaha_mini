@@ -39,7 +39,7 @@ async def init_rabbit() -> None:
     after=after_log(logger, logging.WARN),
 )
 async def init_s3() -> None:
-    await s3.check_s3_connection()
+    await s3.check_s3_connection('svaha-mini')
 
 
 async def main() -> None:
