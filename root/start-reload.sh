@@ -41,4 +41,14 @@ echo "APP_MODULE" $APP_MODULE
 # Start Uvicorn
 # exec uvicorn --host $HOST --port $PORT --log-level info --use-colors --reload --proxy-headers --forwarded-allow-ips='*' "$APP_MODULE"
 
+
+# Start consumer.py in the background
+if [ -f /app/app/consumer.py ]; then
+    echo "Starting consumer.py in the background"
+    python /app/app/consumer.py &
+    echo "consumer.py started"
+else
+    echo "consumer.py not found in /app directory"
+fi
+
 exec uvicorn --host $HOST --port $PORT --log-level info --use-colors --log-config "log_config.json" --reload --proxy-headers --forwarded-allow-ips='*' "$APP_MODULE"

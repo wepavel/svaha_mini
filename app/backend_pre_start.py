@@ -4,9 +4,11 @@ import logging
 from tenacity import after_log, before_log, retry, stop_after_attempt, wait_fixed
 
 from app.core.logging import logger
+from app.core.config import settings
 from app.services.processing import r_queue
 from app.services.redis_service import redis_service
 from app.services.s3_async import s3
+
 
 max_tries = 60 * 5  # 5 minutes
 wait_seconds = 1
@@ -39,7 +41,7 @@ async def init_rabbit() -> None:
     after=after_log(logger, logging.WARN),
 )
 async def init_s3() -> None:
-    await s3.check_s3_connection('svaha-mini')
+    await s3.check_s3_connection(settings.S3_SVAHA_READ_BUCKET)
 
 
 async def main() -> None:

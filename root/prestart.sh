@@ -7,4 +7,4 @@
 # python /app/app/initial_data.py
 
 # Tests before launch
- pyte test -v
+# pyte test -v

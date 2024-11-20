@@ -7,4 +7,5 @@ services:
       - .env
     volumes:
       - .:/app  # Монтируем текущую директорию в /app внутри контейнера
+      - ./result:/app
 

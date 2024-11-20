@@ -1,4 +1,4 @@
-from ast import Bytes
+from enum import Enum
 from functools import wraps
 from io import BytesIO
 import logging
@@ -18,43 +18,44 @@ from app.core.logging import logger
 logging.getLogger('aioboto3').setLevel(logging.INFO)
 logging.getLogger('botocore').setLevel(logging.INFO)
 
+class ClientType(Enum):
+    ROOT = "root"
+    READER = "reader"
+    WRITER = "writer"
 
 class S3Manager:
     def __init__(self, local: bool = True) -> None:
         self.local = local
         # self.bucket_name = settings.S3_BUCKET_NAME
         self.region_name = settings.S3_REGION_NAME
-        self.s3_access_key_id = settings.S3_ACCESS_KEY
-        self.s3_secret_access_key = settings.S3_SECRET_KEY
-
         self.session = aioboto3.Session()
 
-    async def get_client(self) -> BaseClient:
+    async def get_client(self, client_type: ClientType = ClientType.ROOT) -> BaseClient:
+        aws_access_key_id = settings.S3_ACCESS_KEY
+        aws_secret_access_key = settings.S3_SECRET_KEY
+
+        if client_type == ClientType.WRITER:
+            aws_access_key_id = settings.S3_SVAHA_WRITER_LOGIN
+            aws_secret_access_key = settings.S3_SVAHA_WRITER_PASSWORD
+        elif client_type == ClientType.READER:
+            aws_access_key_id = settings.S3_SVAHA_READER_LOGIN
+            aws_secret_access_key = settings.S3_SVAHA_READER_PASSWORD
+
         if self.local:
-            # If use minio
-            # return self.session.client(
-            #     's3',
-            #     region_name=self.region_name,
-            #     endpoint_url=settings.S3_ENDPOINT,
-            #     aws_access_key_id=self.s3_access_key_id,
-            #     aws_secret_access_key=self.s3_secret_access_key,
-            #     config=botocore_client.Config(signature_version='s3v4'),
-            #     verify=False,
-            # )
             return self.session.client(
                 's3',
                 region_name=self.region_name,
                 endpoint_url=settings.S3_ENDPOINT,
-                aws_access_key_id='D14Na_5010',
-                aws_secret_access_key='MoSh0nKa_Grishi_14let',
+                aws_access_key_id=aws_access_key_id,
+                aws_secret_access_key=aws_secret_access_key,
                 config=botocore_client.Config(signature_version='s3v4'),
                 verify=False,
             )
         return self.session.client(
             's3',
             region_name=self.region_name,
-            aws_access_key_id=self.s3_access_key_id,
-            aws_secret_access_key=self.s3_secret_access_key,
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
         )
 
     async def check_s3_connection(self, bucket_name: str) -> None:
@@ -83,26 +84,26 @@ class S3Manager:
         return wrapper
 
     @handle_s3_exceptions
-    async def upload_file(self, local_path: str, file_key: str, bucket_name: str) -> None:
-        async with await self.get_client() as client:
+    async def upload_file(self, local_path: str, file_key: str, bucket_name: str, client_type: ClientType = ClientType.ROOT) -> None:
+        async with await self.get_client(client_type) as client:
             # client.upload_file(local_path, self.bucket_name, file_key)
             await client.upload_file(local_path, bucket_name, file_key)
 
     @handle_s3_exceptions
-    async def upload_bytes_file(self, file: BytesIO, file_key: str, bucket_name: str) -> None:
-        async with await self.get_client() as client:
+    async def upload_bytes_file(self, file: BytesIO, file_key: str, bucket_name: str, client_type: ClientType = ClientType.ROOT) -> None:
+        async with await self.get_client(client_type) as client:
              # await client.upload_fileobj(file, self.bucket_name, file_key)
             await client.upload_fileobj(file, bucket_name, file_key)
 
     @handle_s3_exceptions
-    async def download_file(self, file_key: str, local_path: str, bucket_name: str) -> None:
-        async with await self.get_client() as client:
+    async def download_file(self, file_key: str, local_path: str, bucket_name: str, client_type: ClientType = ClientType.ROOT) -> None:
+        async with await self.get_client(client_type) as client:
             # await client.download_file(self.bucket_name, file_key, local_path)
             await client.download_file(bucket_name, file_key, local_path)
 
     @handle_s3_exceptions
-    async def download_bytes_file(self, file_key: str, bucket_name: str):
-        async with await self.get_client() as client:
+    async def download_bytes_file(self, file_key: str, bucket_name: str, client_type: ClientType = ClientType.ROOT):
+        async with await self.get_client(client_type) as client:
             buffer = io.BytesIO()
             # await client.download_fileobj(self.bucket_name, file_key, buffer)
             await client.download_fileobj(bucket_name, file_key, buffer)
@@ -112,8 +113,8 @@ class S3Manager:
 
 
     @handle_s3_exceptions
-    async def get_file_url(self, file_key: str, bucket_name: str) -> str:
-        async with await self.get_client() as client:
+    async def get_file_url(self, file_key: str, bucket_name: str, client_type: ClientType = ClientType.ROOT) -> str:
+        async with await self.get_client(client_type) as client:
             filename = file_key.split('/')[-1]
             content_disposition = f'attachment; filename={filename};'
             params = {

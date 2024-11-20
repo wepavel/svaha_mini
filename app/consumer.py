@@ -64,7 +64,7 @@ async def main() -> None:
                         message = json.loads(message.body)
                         await redis_service.set_task_process(message['session_id'])
                         await asyncio.sleep(5)
-                        await s3.upload_file('../result.mp3', f'{message["session_id"]}/{message["task_id"]}/R.mp3', 'svaha-mini-output')
+                        await s3.upload_file('./result.mp3', f'{message["session_id"]}/{message["task_id"]}/R.mp3', 'svaha-mini-output')
                         track_url = await s3.get_file_url(f'{message["session_id"]}/{message["task_id"]}/R.mp3', 'svaha-mini-output')
                         await redis_service.complete_task(message['session_id'], track_url)
 

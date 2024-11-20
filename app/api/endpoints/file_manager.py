@@ -2,7 +2,7 @@ from fastapi import APIRouter, File, UploadFile, Cookie
 from fastapi.responses import RedirectResponse, JSONResponse
 
 from app.core.utils import generate_id
-from app.services.s3_async import s3
+from app.services.s3_async import s3, ClientType
 from app.core.exceptions import EXC, ErrorCodes
 from app.core.config import settings
 from app.services.redis_service import redis_service
@@ -82,8 +82,8 @@ async def upload_audio(
     instrumental_stream.seek(0)
 
     try:
-        await s3.upload_bytes_file(voice_stream, f'{session_id}/{project_id}/V.mp3', 'svaha-mini-input')
-        await s3.upload_bytes_file(instrumental_stream, f'{session_id}/{project_id}/M.mp3', 'svaha-mini-input')
+        await s3.upload_bytes_file(voice_stream, f'{session_id}/{project_id}/V.mp3', 'svaha-mini-input', ClientType.WRITER)
+        await s3.upload_bytes_file(instrumental_stream, f'{session_id}/{project_id}/M.mp3', 'svaha-mini-input', ClientType.WRITER)
     except Exception as e:
         # TODO: create new exception for this
         raise EXC(ErrorCodes.CoreFileUploadingError, details={'reason': str(e)})
