@@ -118,8 +118,7 @@ async def test_check_rabbit_pooled_connection(rabbit_service: RQueue):
 
     # Error scenario test
     mock_channel.declare_queue.side_effect = Exception('Test error')
-    with (patch('app.services.processing.logger') as mock_logger,
-          pytest.raises(Exception, match='Test error')):
+    with patch('app.services.processing.logger') as mock_logger, pytest.raises(Exception, match='Test error'):
         await rabbit_service.check_rabbit_pooled_connection()
         mock_logger.error.assert_called_once_with('Error connecting to RabbitMQ: Test error')
 
@@ -193,8 +192,10 @@ async def test_send_to_queue_exception(rabbit_service: RQueue, redis_service: Re
     channel_context.__aenter__.return_value = mock_channel
     rabbit_service.channel_pool.acquire.return_value = channel_context
 
-    with (patch('app.services.processing.redis_service', new=redis_service),
-          pytest.raises(Exception, match='Test exception')):
+    with (
+        patch('app.services.processing.redis_service', new=redis_service),
+        pytest.raises(Exception, match='Test exception'),
+    ):
         await rabbit_service.send_to_queue(message)
 
     redis_service.create_task.assert_awaited_once_with('test_session')

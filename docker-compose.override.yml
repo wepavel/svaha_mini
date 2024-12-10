@@ -2,13 +2,15 @@ version: '3.9'
 services:
   backend:
     ports:
-      - '8001:8001'  # Host
+      - 127.0.0.1:8001:8001  # Host
 
     volumes:
       - .:/app  # Mount current dir into app
       - /etc/localtime:/etc/localtime:ro
     environment:
       - TERM=`xterm-256color`
+
+    network_mode: "host"
 
     build:
       context: ./

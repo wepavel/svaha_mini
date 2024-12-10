@@ -15,6 +15,8 @@ dependencies = [
     "tenacity>=9.0.0",
     "aioredis>=2.0.1",
     "requests>=2.32.3",
+    "websockets>=14.1",
+    "streaming-form-data>=1.19.0",
 ]
 readme = "README.md"
 requires-python = ">= 3.8"
@@ -32,6 +34,7 @@ dev-dependencies = [
     "httpx>=0.27.2",
     "pytest-asyncio>=0.24.0",
     "asynctest>=0.13.0",
+    "websocket-client>=1.8.0",
 ]
 #virtual_env = "./venv5"
 

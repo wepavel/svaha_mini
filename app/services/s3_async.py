@@ -1,5 +1,6 @@
 from enum import Enum
 from functools import wraps
+import io
 from io import BytesIO
 import logging
 import os
@@ -10,7 +11,6 @@ import aioboto3
 from botocore import client as botocore_client
 from botocore.client import BaseClient
 from botocore.exceptions import ClientError
-import io
 
 from app.core.config import settings
 from app.core.logging import logger
@@ -18,10 +18,12 @@ from app.core.logging import logger
 logging.getLogger('aioboto3').setLevel(logging.INFO)
 logging.getLogger('botocore').setLevel(logging.INFO)
 
+
 class ClientType(Enum):
-    ROOT = "root"
-    READER = "reader"
-    WRITER = "writer"
+    ROOT = 'root'
+    READER = 'reader'
+    WRITER = 'writer'
+
 
 class S3Manager:
     def __init__(self, local: bool = True) -> None:
@@ -84,19 +86,26 @@ class S3Manager:
         return wrapper
 
     @handle_s3_exceptions
-    async def upload_file(self, local_path: str, file_key: str, bucket_name: str, client_type: ClientType = ClientType.ROOT) -> None:
+    async def upload_file(
+        self, local_path: str, file_key: str, bucket_name: str, client_type: ClientType = ClientType.ROOT
+    ) -> None:
         async with await self.get_client(client_type) as client:
             # client.upload_file(local_path, self.bucket_name, file_key)
             await client.upload_file(local_path, bucket_name, file_key)
 
     @handle_s3_exceptions
-    async def upload_bytes_file(self, file: BytesIO, file_key: str, bucket_name: str, client_type: ClientType = ClientType.ROOT) -> None:
+    async def upload_bytes_file(
+        self, file: BytesIO, file_key: str, bucket_name: str, client_type: ClientType = ClientType.ROOT
+    ) -> None:
         async with await self.get_client(client_type) as client:
-             # await client.upload_fileobj(file, self.bucket_name, file_key)
+            # await client.upload_fileobj(file, self.bucket_name, file_key)
             await client.upload_fileobj(file, bucket_name, file_key)
+            # await client.put_object(Bucket=bucket_name, Key=file_key, Body=file)
 
     @handle_s3_exceptions
-    async def download_file(self, file_key: str, local_path: str, bucket_name: str, client_type: ClientType = ClientType.ROOT) -> None:
+    async def download_file(
+        self, file_key: str, local_path: str, bucket_name: str, client_type: ClientType = ClientType.ROOT
+    ) -> None:
         async with await self.get_client(client_type) as client:
             # await client.download_file(self.bucket_name, file_key, local_path)
             await client.download_file(bucket_name, file_key, local_path)
@@ -109,8 +118,6 @@ class S3Manager:
             await client.download_fileobj(bucket_name, file_key, buffer)
             buffer.seek(0)
             return buffer
-
-
 
     @handle_s3_exceptions
     async def get_file_url(self, file_key: str, bucket_name: str, client_type: ClientType = ClientType.ROOT) -> str:
@@ -125,6 +132,39 @@ class S3Manager:
             }
             return await client.generate_presigned_url('get_object', Params=params, ExpiresIn=3600)
 
+    @handle_s3_exceptions
+    async def get_latest_subfolder(
+        self, path: str, bucket_name: str, client_type: ClientType = ClientType.ROOT
+    ) -> str | None:
+        async with await self.get_client(client_type) as client:
+            response = await client.list_objects_v2(Bucket=bucket_name, Prefix=path, Delimiter='/')
+            if 'CommonPrefixes' not in response:
+                logger.info(f"No subfolders found in path '{path}' in bucket '{bucket_name}'")
+                return None
+
+            subfolders = [prefix['Prefix'] for prefix in response['CommonPrefixes']]
+            if not subfolders:
+                logger.info(f"No subfolders found in path '{path}' in bucket '{bucket_name}'")
+                return None
+
+            latest_subfolder = max(subfolders, key=lambda x: x.split('/')[-2])
+            logger.info(f'Latest subfolder found: {latest_subfolder}')
+            return latest_subfolder
+        # async with await self.get_client(client_type) as client:
+        #     paginator = client.get_paginator('list_objects_v2')
+        #     latest_subfolder = None
+        #     latest_date = None
+        #
+        #     async for page in paginator.paginate(Bucket=bucket_name, Prefix=path, Delimiter='/'):
+        #         for prefix in page.get('CommonPrefixes', []):
+        #             subfolder = prefix['Prefix']
+        #             response = await client.list_objects_v2(Bucket=bucket_name, Prefix=subfolder, Delimiter='/')
+        #             if response['Contents']:
+        #                 subfolder_date = response['Contents'][0]['LastModified']
+        #                 if latest_date is None or subfolder_date > latest_date:
+        #                     latest_date = subfolder_date
+        #                     latest_subfolder = subfolder
+        # return latest_subfolder
 
     @handle_s3_exceptions
     async def delete_object(self, file_key: str, bucket_name: str) -> None:
@@ -142,7 +182,9 @@ class S3Manager:
                 if not file_key.endswith('/'):
                     await self.delete_object(file_key, bucket_name)
 
-    async def download_files_from_dir(self, *, dir_key: str, local_dir: str, bucket_name: str, overwrite: bool = False) -> None:
+    async def download_files_from_dir(
+        self, *, dir_key: str, local_dir: str, bucket_name: str, overwrite: bool = False
+    ) -> None:
         """Download all files in a directory from S3 to a local directory
 
         :param dir_key: the key of the directory in S3, e.g. 'foo/bar/'

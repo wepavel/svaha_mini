@@ -1,17 +1,14 @@
-from importlib.metadata import files
 from io import BytesIO
 from typing import Dict
+from urllib.parse import quote
 
 from fastapi import APIRouter, File, Form, UploadFile
-from fastapi.responses import JSONResponse, StreamingResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 
 from app.core.exceptions import EXC, ErrorCodes
 from app.services.s3_async import s3
-from urllib.parse import quote
 
 router = APIRouter()
-
-
 
 
 @router.post('/upload/')
@@ -37,14 +34,15 @@ async def download_file(key: str) -> StreamingResponse:
             content=file_content,
             media_type=file_info['ContentType'],
             headers={
-                "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}",
-                "Content-Type": file_info['ContentType'],
-                "Content-Length": str(file_content.getbuffer().nbytes)
-            }
+                'Content-Disposition': f"attachment; filename*=UTF-8''{encoded_filename}",
+                'Content-Type': file_info['ContentType'],
+                'Content-Length': str(file_content.getbuffer().nbytes),
+            },
         )
 
     except Exception as e:
         raise EXC(ErrorCodes.CoreFileUploadingError, details={'reason': str(e)})
+
 
 @router.get('/get_file_url/{key:path}')
 async def get_file_url(key: str) -> RedirectResponse:
@@ -54,6 +52,7 @@ async def get_file_url(key: str) -> RedirectResponse:
         return RedirectResponse(url=presigned_url, status_code=303)
     except Exception as e:
         raise EXC(ErrorCodes.CoreFileUploadingError, details={'reason': str(e)})
+
 
 @router.delete('/delete/{key:path}')
 async def delete_file(key: str) -> Dict[str, str]:
@@ -71,6 +70,7 @@ async def delete_dir(key: str) -> Dict[str, str]:
         return {'message': 'Directory deleted successfully'}
     except Exception as e:
         raise EXC(ErrorCodes.CoreFileUploadingError, details={'reason': str(e)})
+
 
 @router.get('/list/')
 async def list_files(prefix: str = '') -> JSONResponse:

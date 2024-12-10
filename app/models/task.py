@@ -1,5 +1,9 @@
-class TaskStatus:  # (Enum)
+from enum import Enum
+
+
+class TaskStatus(Enum):  # (Enum)
     INIT = 'init'
+    UPLOADING = 'uploading'
     QUEUED = 'queued'
     IN_PROGRESS = 'in progress'
     COMPLETED = 'completed'

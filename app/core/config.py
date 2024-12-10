@@ -1,7 +1,7 @@
 import os
 from typing import List
 
-from pydantic import AnyHttpUrl, ValidationError, field_validator, Field
+from pydantic import AnyHttpUrl, Field, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,7 +14,7 @@ class Settings(BaseSettings):
         case_sensitive=True,
     )
 
-    API_V1_STR: str = ''
+    API_V1_STR: str = '/api/v1'
     # SERVER_NAME: str
     # SERVER_HOST: AnyHttpUrl
     HOST: str = '127.0.0.1'
