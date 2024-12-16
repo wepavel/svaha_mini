@@ -17,15 +17,16 @@ class Settings(BaseSettings):
     API_V1_STR: str = '/api/v1'
     # SERVER_NAME: str
     # SERVER_HOST: AnyHttpUrl
-    HOST: str = '127.0.0.1'
-    PORT: int = 8001
+    HOST: str =  os.getenv('HOST', '127.0.0.1')
+    PORT: int = os.getenv('PORT', 8001)
 
     PROJECT_NAME: str = 'Default Project Name'
 
-    SESSION_EXPIRE_MINUTES: int = 60 * 24 * 10  # 10 days
+    SESSION_EXPIRE_MINUTES: int = 60 * 24 * 365 # 1 year
 
     # S3
-    S3_ENDPOINT: str = os.getenv('S3_ENDPOINT', 'http://127.0.0.1:9000')
+    S3_PUBLIC_DOMAIN: str = os.getenv('S3_DOMAIN', 'default-domain')
+    S3_ENDPOINT: str = os.getenv('S3_ENDPOINT', 'default-endpoint')
     S3_ACCESS_KEY: str = os.getenv('S3_ACCESS_KEY')
     S3_SECRET_KEY: str = os.getenv('S3_SECRET_KEY')
     S3_BUCKET_NAME: str = os.getenv('S3_BUCKET_NAME', 'default_bucket')

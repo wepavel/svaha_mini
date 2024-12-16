@@ -11,26 +11,6 @@ from app.services.redis_service import redis_service
 from app.services.s3_async import s3
 from app.models.task import TaskStatus
 
-# s3_target = aioboto3.resource(
-#     's3',
-#     endpoint_url=settings.S3_ENDPOINT,
-#     aws_access_key_id=settings.S3_ACCESS_KEY,
-#     aws_secret_access_key=settings.S3_SECRET_KEY,
-#     aws_session_token=None,
-#     config=aioboto3.session.Config(signature_version='s3v4'),
-#     verify=False,
-# )
-
-
-# async def process_message(
-#     message: aio_pika.abc.AbstractIncomingMessage,
-# ) -> None:
-#     async with message.process():
-#         print(message.body)
-#         message = json.loads(message.body)
-#         await redis_service.complete_task(message['session_id'])
-#         await asyncio.sleep(1)
-
 
 async def main() -> None:
     async def get_connection() -> AbstractRobustConnection:
@@ -72,7 +52,7 @@ async def main() -> None:
                                 f'{message["session_id"]}/{message["task_id"]}/R.mp3',
                                 'svaha-mini-output',
                             )
-                            track_url = f'https://s3.machine-prod.ru/{message["session_id"]}/{message["task_id"]}/R.mp3'
+                            track_url = f'{settings.S3_PUBLIC_DOMAIN}/{message["session_id"]}/{message["task_id"]}/R.mp3'
                             await asyncio.sleep(5)
                             await redis_service.complete_task(message['session_id'], track_url)
                         except:

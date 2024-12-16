@@ -8,6 +8,10 @@ from typing import Any, Dict, List
 import zipfile
 
 import aioboto3
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
+
+
 from botocore import client as botocore_client
 from botocore.client import BaseClient
 from botocore.exceptions import ClientError
@@ -31,6 +35,7 @@ class S3Manager:
         # self.bucket_name = settings.S3_BUCKET_NAME
         self.region_name = settings.S3_REGION_NAME
         self.session = aioboto3.Session()
+        logger.info(f'S3 endpoitn: {settings.S3_ENDPOINT}')
 
     async def get_client(self, client_type: ClientType = ClientType.ROOT) -> BaseClient:
         aws_access_key_id = settings.S3_ACCESS_KEY
@@ -102,6 +107,100 @@ class S3Manager:
             await client.upload_fileobj(file, bucket_name, file_key)
             # await client.put_object(Bucket=bucket_name, Key=file_key, Body=file)
 
+    # @handle_s3_exceptions
+    # async def init_multipart_upload(
+    #         self,
+    #         file_key: str,
+    #         bucket_name: str,
+    #         client_type: ClientType = ClientType.ROOT
+    # ):
+    #     async with await self.get_client(client_type) as client:
+    #         multipart_upload = await client.create_multipart_upload(
+    #             # ACL='public-read',
+    #             Bucket=bucket_name,
+    #             ContentType='audio/mpeg3',
+    #             Key=file_key,
+    #         )
+    #
+    #         return multipart_upload
+    #
+    # @handle_s3_exceptions
+    # async def chunk_multipart_upload(
+    #         self,
+    #         multipart_upload,
+    #         file_key: str,
+    #         bucket_name: str,
+    #         chunk: BytesIO,
+    #         part_number: int,
+    #         parts,
+    #         client_type: ClientType = ClientType.ROOT
+    # ) -> None:
+    #     async with await self.get_client(client_type) as client:
+    #         upload_part_response = await client.upload_part(
+    #             Bucket=bucket_name,
+    #             Key=file_key,
+    #             UploadId=multipart_upload['UploadId'],
+    #             PartNumber=part_number,
+    #             Body=BytesIO(chunk)
+    #         )
+    #         # upload_part_response = await upload_part.upload(
+    #         #     Body=BytesIO(chunk),
+    #         # )
+    #         parts.append({
+    #             'PartNumber': part_number,
+    #             'ETag': upload_part_response['ETag']
+    #         })
+    #
+    # @handle_s3_exceptions
+    # async def complete_multipart_upload(
+    #         self,
+    #         multipart_upload,
+    #         file_key: str,
+    #         bucket_name: str,
+    #         parts,
+    #         client_type: ClientType = ClientType.ROOT
+    # ) -> None:
+    #     async with await self.get_client(client_type) as client:
+    #         complete_result = await client.complete_multipart_upload(
+    #             Bucket=bucket_name,
+    #             Key=file_key,
+    #             MultipartUpload={
+    #                 'Parts': parts
+    #             },
+    #             UploadId=multipart_upload['UploadId'],
+    #         )
+    #         return complete_result
+
+    @asynccontextmanager
+    async def multipart_upload_context(self, file_key: str, bucket_name: str,
+                                       client_type: ClientType = ClientType.ROOT) -> AsyncGenerator:
+        async with await self.get_client(client_type) as client:
+            try:
+                multipart_upload = await client.create_multipart_upload(
+                    Bucket=bucket_name,
+                    ContentType='audio/mpeg3',
+                    Key=file_key,
+                )
+                upload_id = multipart_upload['UploadId']
+                parts = []
+                yield MultipartUploadContext(client, upload_id, file_key, bucket_name, parts)
+            except Exception:
+                if 'upload_id' in locals():
+                    await client.abort_multipart_upload(
+                        Bucket=bucket_name,
+                        Key=file_key,
+                        UploadId=upload_id,
+                    )
+                raise
+            else:
+                if parts:
+                    await client.complete_multipart_upload(
+                        Bucket=bucket_name,
+                        Key=file_key,
+                        MultipartUpload={'Parts': parts},
+                        UploadId=upload_id,
+                    )
+
     @handle_s3_exceptions
     async def download_file(
         self, file_key: str, local_path: str, bucket_name: str, client_type: ClientType = ClientType.ROOT
@@ -150,21 +249,7 @@ class S3Manager:
             latest_subfolder = max(subfolders, key=lambda x: x.split('/')[-2])
             logger.info(f'Latest subfolder found: {latest_subfolder}')
             return latest_subfolder
-        # async with await self.get_client(client_type) as client:
-        #     paginator = client.get_paginator('list_objects_v2')
-        #     latest_subfolder = None
-        #     latest_date = None
-        #
-        #     async for page in paginator.paginate(Bucket=bucket_name, Prefix=path, Delimiter='/'):
-        #         for prefix in page.get('CommonPrefixes', []):
-        #             subfolder = prefix['Prefix']
-        #             response = await client.list_objects_v2(Bucket=bucket_name, Prefix=subfolder, Delimiter='/')
-        #             if response['Contents']:
-        #                 subfolder_date = response['Contents'][0]['LastModified']
-        #                 if latest_date is None or subfolder_date > latest_date:
-        #                     latest_date = subfolder_date
-        #                     latest_subfolder = subfolder
-        # return latest_subfolder
+
 
     @handle_s3_exceptions
     async def delete_object(self, file_key: str, bucket_name: str) -> None:
@@ -334,4 +419,30 @@ class S3Manager:
         await self.unzip_to_directory(archive_path, local_path, create_subdir=create_subdir)
 
 
+class MultipartUploadContext:
+    def __init__(self, client, upload_id, file_key, bucket_name, parts):
+        self.client = client
+        self.upload_id = upload_id
+        self.file_key = file_key
+        self.bucket_name = bucket_name
+        self.parts = parts
+        self.part_number = 1
+
+    async def upload_part(self, chunk: bytes):
+        response = await self.client.upload_part(
+            Bucket=self.bucket_name,
+            Key=self.file_key,
+            UploadId=self.upload_id,
+            PartNumber=self.part_number,
+            Body=chunk
+        )
+        self.parts.append({
+            'PartNumber': self.part_number,
+            'ETag': response['ETag']
+        })
+        self.part_number += 1
+
+
 s3 = S3Manager()
+
+

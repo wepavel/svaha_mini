@@ -3,14 +3,9 @@ from io import BytesIO
 import time
 from typing import Any
 
-from fastapi import APIRouter, Cookie, File, UploadFile, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse, StreamingResponse, HTMLResponse
+from fastapi import APIRouter, Cookie, File, UploadFile, WebSocket, WebSocketDisconnect, Request
+from fastapi.responses import JSONResponse, HTMLResponse
 from asyncio import sleep as async_sleep
-
-# from starlette.requests import Request, ClientDisconnect
-# import streaming_form_data
-# from streaming_form_data import StreamingFormDataParser
-# from streaming_form_data.targets import FileTarget, ValueTarget
 
 from app.core.config import settings
 from app.core.exceptions import EXC, ErrorCodes
@@ -29,7 +24,7 @@ import json
 
 router = APIRouter()
 
-CHUNK_SIZE = 1024 * 256  # 64 kB
+CHUNK_SIZE = 1024 * 1024 * 5  # 64 kB
 ALLOWED_EXTENSIONS = {'mp3', 'wav', 'ogg'}
 FILE_MAX_SIZE = 100 * 1024 * 1024  # 100 MB
 
@@ -48,8 +43,31 @@ class AvgProcTime:
 
 avg_time_manager = AvgProcTime()
 
+
+async def get_client_domain(request: Request) -> str:
+    def extract_domain(url: str) -> str:
+        # Убираем протокол
+        domain = url.split("://")[-1]
+        # Убираем путь и параметры запроса
+        domain = domain.split("/")[0]
+        # Убираем порт
+        domain = domain.split(":")[0]
+        return domain
+
+    origin = request.headers.get("origin")
+    if origin:
+        return extract_domain(origin)
+
+    referer = request.headers.get("referer")
+    if referer:
+        return extract_domain(referer)
+
+    return "Unknown"
+
+
 @router.get('/session')
 async def get_session(session_id: str | None = Cookie(None)) -> JSONResponse:
+    # domain: str = Depends(get_client_domain),
     """
     Get session id and set it into cookie
     """
@@ -61,15 +79,23 @@ async def get_session(session_id: str | None = Cookie(None)) -> JSONResponse:
             key='session_id',
             value=session_id,
             # httponly=False,
-            # samesite='none',
-            secure=False,
-            # max_age=settings.SESSION_EXPIRE_MINUTES,
+            samesite='none',
+            # domain=domain,
+            secure=True,
+            max_age=settings.SESSION_EXPIRE_MINUTES,
         )
         await redis_service.init_task(session_id)
     else:
         raise EXC(ErrorCodes.SessionAlreadyExists)
     # if session_id not in session_db:
     #     raise HTTPException(status_code=404, detail="Session not found")
+
+    # Set custom header for all environments
+    response.headers["X-Session-Token"] = session_id
+
+    # Add the custom header to Access-Control-Expose-Headers
+    response.headers["Access-Control-Expose-Headers"] = "X-Session-Token"
+
     return response
 
 
@@ -100,6 +126,7 @@ async def upload_audio(
     # Check if audio is incorrect
     vocal_extension = vocal.filename.split('.')[-1].lower()
     instrumental_extension = instrumental.filename.split('.')[-1].lower()
+    logger.info(f'Vocal filename: {vocal.filename}; Instrumental filename: {instrumental.filename}')
 
     if vocal is None or instrumental is None:
         await redis_service.set_status(session_id, TaskStatus.FAILED)
@@ -118,35 +145,23 @@ async def upload_audio(
     track_id = generate_id(datetime_flag=True)
 
     total_size = vocal.size + instrumental.size
+    logger.info(f'Vocal size: {vocal.size} | Instrumental size: {instrumental.size}')
 
     chunks_uploaded = 0
     total_chunks = math.ceil(total_size / CHUNK_SIZE)
 
-    async def upload_file(file: UploadFile) -> BytesIO:
+    async def upload_file(file: UploadFile, file_key: str, bucket_name: str) -> None:
         nonlocal chunks_uploaded
-        file_data = BytesIO()
-        while contents := await file.read(CHUNK_SIZE):
-            file_data.write(contents)
-            chunks_uploaded += 1
-            await redis_service.set_progress(session_id, int(chunks_uploaded*100/total_chunks))
 
-        return file_data
+        async with s3.multipart_upload_context(file_key, bucket_name) as upload_context:
+            while contents := await file.read(CHUNK_SIZE):
+                await upload_context.upload_part(contents)
+                chunks_uploaded += 1
+                await redis_service.set_progress(session_id, int(chunks_uploaded*100/total_chunks))
 
-    vocal_stream = await upload_file(vocal)
-    instrumental_stream = await upload_file(instrumental)
-
-    # Upload files to Minio
-    try:
-        await s3.upload_bytes_file(
-            vocal_stream, f'{session_id}/{track_id}/V.mp3', 'svaha-mini-input', ClientType.WRITER
-        )
-        await s3.upload_bytes_file(
-            instrumental_stream, f'{session_id}/{track_id}/M.mp3', 'svaha-mini-input', ClientType.WRITER
-        )
-    except Exception as e:
-        redis_service.set_status(session_id, TaskStatus.FAILED)
-        logger.error(f'Error uploading files to S3 storage: {e}')
-        raise EXC(ErrorCodes.DbError, details={'reason': str(e)})
+    await redis_service.set_progress(session_id, 0)
+    await upload_file(vocal, f'{session_id}/{track_id}/V.mp3', 'svaha-mini-input')
+    await upload_file(instrumental, f'{session_id}/{track_id}/M.mp3', 'svaha-mini-input')
 
     # Send task to RabbitMQ/Redis
     message = {

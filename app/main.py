@@ -13,7 +13,7 @@ app = FastAPI(
     openapi_url=f'{settings.API_V1_STR}/openapi.json',
     # root_path=settings.API_V1_STR
     # prefix=settings.API_V1_STR,
-    docs_url=f'{settings.API_V1_STR}/docs',
+    docs_url=f'/docs',
     # openapi_url="/openapi.json",
     # static_url="/static"
 )

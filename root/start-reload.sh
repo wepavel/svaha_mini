@@ -51,4 +51,6 @@ else
     echo "consumer.py not found in /app directory"
 fi
 
+echo "Host: "$HOST "Port: "$PORT
+
 exec uvicorn --host $HOST --port $PORT --log-level info --use-colors --log-config "log_config.json" --reload --proxy-headers --forwarded-allow-ips='*' "$APP_MODULE"
