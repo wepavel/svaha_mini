@@ -35,7 +35,7 @@ class S3Manager:
         # self.bucket_name = settings.S3_BUCKET_NAME
         self.region_name = settings.S3_REGION_NAME
         self.session = aioboto3.Session()
-        logger.info(f'S3 endpoitn: {settings.S3_ENDPOINT}')
+        # logger.info(f'S3 endpoint: {settings.S3_ENDPOINT}')
 
     async def get_client(self, client_type: ClientType = ClientType.ROOT) -> BaseClient:
         aws_access_key_id = settings.S3_ACCESS_KEY

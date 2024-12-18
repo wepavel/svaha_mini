@@ -1,6 +1,7 @@
 import inspect
 import logging
-
+from app.core.config import settings
+from pathlib import Path
 
 class ContextFilter(logging.Filter):
     def filter(self, record):
@@ -39,6 +40,10 @@ class StreamToLogger:
         return False
 
 
+# log_dir = Path(settings.LOG_PATH)
+# log_dir.mkdir(parents=True, exist_ok=True)
+# log_file = log_dir / 'app.log'
+
 logging.basicConfig(
     # filename="logs/vc_service.log",
     # format='%(asctime)s %(message)s',
@@ -47,8 +52,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger('app_logger')
 logger.setLevel(logging.DEBUG)
+
 context_filter = ContextFilter()
 logger.addFilter(context_filter)
+
+# file_handler = logging.FileHandler(log_file)
+# file_handler.setLevel(logging.DEBUG)
+# file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s [%(filename)s:%(funcName)s]')
+# file_handler.setFormatter(file_formatter)
+#
+# logger.addHandler(file_handler)
+
 logger.info('Init')
 #
 # sys.stdout = StreamToLogger(logger, logging.INFO)

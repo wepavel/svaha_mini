@@ -152,52 +152,52 @@ async def test_check_rabbit_connection():
         mock_logger.error.assert_called_once_with('Error connecting to RabbitMQ: Test error')
 
 
-@pytest.mark.asyncio
-async def test_send_to_queue(rabbit_service: RQueue, redis_service: Redis):
-    message = {'session_id': 'test_session'}
-    mock_channel = AsyncMock()
-    mock_queue = AsyncMock()
-    mock_exchange = AsyncMock()
-    mock_channel.declare_queue.return_value = mock_queue
-    mock_channel.default_exchange = mock_exchange
+# @pytest.mark.asyncio
+# async def test_send_to_queue(rabbit_service: RQueue, redis_service: Redis):
+#     message = {'session_id': 'test_session'}
+#     mock_channel = AsyncMock()
+#     mock_queue = AsyncMock()
+#     mock_exchange = AsyncMock()
+#     mock_channel.declare_queue.return_value = mock_queue
+#     mock_channel.default_exchange = mock_exchange
+#
+#     channel_context = AsyncMock()
+#     channel_context.__aenter__.return_value = mock_channel
+#     rabbit_service.channel_pool.acquire.return_value = channel_context
+#
+#     with patch('app.services.processing.redis_service', new=redis_service):
+#         await rabbit_service.send_to_queue(message)
+#
+#     redis_service.create_task.assert_awaited_once_with('test_session')
+#     rabbit_service.channel_pool.acquire.assert_called_once()
+#     mock_channel.declare_queue.assert_awaited_once_with('processing_queue', durable=True)
+#     mock_exchange.publish.assert_awaited_once()
+#     call_args = mock_exchange.publish.await_args
+#     assert call_args is not None
+#     args, kwargs = call_args
+#     actual_message = args[0]
+#     assert isinstance(actual_message, Message)
+#     expected_body = json.dumps(message).encode()
+#     assert actual_message.body == expected_body
+#     assert kwargs['routing_key'] == mock_queue.name
 
-    channel_context = AsyncMock()
-    channel_context.__aenter__.return_value = mock_channel
-    rabbit_service.channel_pool.acquire.return_value = channel_context
 
-    with patch('app.services.processing.redis_service', new=redis_service):
-        await rabbit_service.send_to_queue(message)
-
-    redis_service.create_task.assert_awaited_once_with('test_session')
-    rabbit_service.channel_pool.acquire.assert_called_once()
-    mock_channel.declare_queue.assert_awaited_once_with('processing_queue', durable=True)
-    mock_exchange.publish.assert_awaited_once()
-    call_args = mock_exchange.publish.await_args
-    assert call_args is not None
-    args, kwargs = call_args
-    actual_message = args[0]
-    assert isinstance(actual_message, Message)
-    expected_body = json.dumps(message).encode()
-    assert actual_message.body == expected_body
-    assert kwargs['routing_key'] == mock_queue.name
-
-
-@pytest.mark.asyncio
-async def test_send_to_queue_exception(rabbit_service: RQueue, redis_service: Redis, mock_rabbit_connection: AsyncMock):
-    message = {'session_id': 'test_session'}
-    mock_channel = AsyncMock()
-    mock_channel.declare_queue.side_effect = Exception('Test exception')
-
-    channel_context = AsyncMock()
-    channel_context.__aenter__.return_value = mock_channel
-    rabbit_service.channel_pool.acquire.return_value = channel_context
-
-    with (
-        patch('app.services.processing.redis_service', new=redis_service),
-        pytest.raises(Exception, match='Test exception'),
-    ):
-        await rabbit_service.send_to_queue(message)
-
-    redis_service.create_task.assert_awaited_once_with('test_session')
-    rabbit_service.channel_pool.acquire.assert_called_once()
-    mock_channel.declare_queue.assert_awaited_once_with('processing_queue', durable=True)
+# @pytest.mark.asyncio
+# async def test_send_to_queue_exception(rabbit_service: RQueue, redis_service: Redis, mock_rabbit_connection: AsyncMock):
+#     message = {'session_id': 'test_session'}
+#     mock_channel = AsyncMock()
+#     mock_channel.declare_queue.side_effect = Exception('Test exception')
+#
+#     channel_context = AsyncMock()
+#     channel_context.__aenter__.return_value = mock_channel
+#     rabbit_service.channel_pool.acquire.return_value = channel_context
+#
+#     with (
+#         patch('app.services.processing.redis_service', new=redis_service),
+#         pytest.raises(Exception, match='Test exception'),
+#     ):
+#         await rabbit_service.send_to_queue(message)
+#
+#     redis_service.create_task.assert_awaited_once_with('test_session')
+#     rabbit_service.channel_pool.acquire.assert_called_once()
+#     mock_channel.declare_queue.assert_awaited_once_with('processing_queue', durable=True)

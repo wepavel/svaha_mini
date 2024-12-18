@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse, HTMLResponse
 from asyncio import sleep as async_sleep
 
 from app.core.config import settings
-from app.core.exceptions import EXC, ErrorCodes
+from app.core.exceptions import EXC, ErrorCode
 from app.core.logging import logger
 from app.core.utils import generate_id
 from app.models.session import Session, SessionPublic
@@ -86,7 +86,7 @@ async def get_session(session_id: str | None = Cookie(None)) -> JSONResponse:
         )
         await redis_service.init_task(session_id)
     else:
-        raise EXC(ErrorCodes.SessionAlreadyExists)
+        raise EXC(ErrorCode.SessionAlreadyExists)
     # if session_id not in session_db:
     #     raise HTTPException(status_code=404, detail="Session not found")
 
@@ -119,7 +119,7 @@ async def upload_audio(
     - EXC: If there is an error while uploading files to S3.
     """
     if session_id is None:
-        raise EXC(ErrorCodes.SessionNotFound)
+        raise EXC(ErrorCode.SessionNotFound)
 
     await redis_service.set_status(session_id, TaskStatus.UPLOADING)
 
@@ -130,17 +130,17 @@ async def upload_audio(
 
     if vocal is None or instrumental is None:
         await redis_service.set_status(session_id, TaskStatus.FAILED)
-        raise EXC(ErrorCodes.ValidationError, details={'reason': 'Two files are required'})
+        raise EXC(ErrorCode.ValidationError, details={'reason': 'Two files are required'})
 
     if vocal_extension not in ALLOWED_EXTENSIONS or instrumental_extension not in ALLOWED_EXTENSIONS:
         await redis_service.set_status(session_id, TaskStatus.FAILED)
-        raise EXC(ErrorCodes.ValidationError, details={'reason': 'Files must have allowed extensions'})
+        raise EXC(ErrorCode.ValidationError, details={'reason': 'Files must have allowed extensions'})
 
     # position = await redis_service.get_position(session_id)
     position = await redis_service.get_session_data(session_id, position = True)
 
     if position is not None:
-        raise EXC(ErrorCodes.TaskAlreadyExists)
+        raise EXC(ErrorCode.TaskAlreadyExists)
 
     track_id = generate_id(datetime_flag=True)
 
@@ -156,8 +156,9 @@ async def upload_audio(
         async with s3.multipart_upload_context(file_key, bucket_name) as upload_context:
             while contents := await file.read(CHUNK_SIZE):
                 await upload_context.upload_part(contents)
-                chunks_uploaded += 1
+
                 await redis_service.set_progress(session_id, int(chunks_uploaded*100/total_chunks))
+                chunks_uploaded += 1
 
     await redis_service.set_progress(session_id, 0)
     await upload_file(vocal, f'{session_id}/{track_id}/V.mp3', 'svaha-mini-input')
@@ -170,7 +171,7 @@ async def upload_audio(
     }
     if not await r_queue.send_to_queue(message):
         redis_service.set_status(session_id, TaskStatus.FAILED)
-        raise EXC(ErrorCodes.DbError)
+        raise EXC(ErrorCode.DbError)
 
     position = await redis_service.get_session_data(session_id, position=True)
 
@@ -209,7 +210,7 @@ async def get_status(session_id: str | None = Cookie(None)) -> Any:
     )
     status = session_data.get('status', None)
     if not status:
-        raise EXC(ErrorCodes.TaskNotFound)
+        raise EXC(ErrorCode.TaskNotFound)
 
     estimated_time = None
     download_url = None

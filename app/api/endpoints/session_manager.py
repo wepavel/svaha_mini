@@ -5,7 +5,7 @@ from fastapi import APIRouter, Cookie
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
-from app.core.exceptions import EXC, ErrorCodes
+from app.core.exceptions import EXC, ErrorCode
 from app.core.utils import generate_id
 from app.models.session import Session, SessionPublic
 from app.services.processing import r_queue
@@ -53,7 +53,7 @@ async def create_task(
     """
     position = await redis_service.get_position(session_id)
     if position is not None:
-        raise EXC(ErrorCodes.TaskAlreadyExists)
+        raise EXC(ErrorCode.TaskAlreadyExists)
     await r_queue.send_to_queue(
         {
             'session_id': session_id,
@@ -71,7 +71,7 @@ async def get_status(session_id: str | None = Cookie(None)) -> Any:
     """
     status = await redis_service.get_status(session_id)  # redis.get(f"status:{session_id}")
     if not status:
-        raise EXC(ErrorCodes.TaskNotFound)
+        raise EXC(ErrorCode.TaskNotFound)
 
     position = await redis_service.get_position(session_id)
 
@@ -114,7 +114,7 @@ async def exc_test():
     Test exception
     """
 
-    raise EXC(ErrorCodes.IncorrUserCreds)
+    raise EXC(ErrorCode.IncorrUserCreds)
 
     # json_compatible_item_data = jsonable_encoder('Exception test')
 
