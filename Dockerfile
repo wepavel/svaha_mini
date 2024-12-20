@@ -1,7 +1,14 @@
 FROM python:3.10-slim
 
+RUN apt-get update && \
+    apt-get install -y curl && \
+    curl --proto '=https' --tlsv1.2 -sSfL https://sh.vector.dev | bash -s -- -y && \
+    ln -s /root/.vector/bin/vector /usr/local/bin/vector && \
+    pip install uv --no-cache-dir && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/
 
-RUN pip install uv
+#RUN pip install uv
 
 WORKDIR /app/
 

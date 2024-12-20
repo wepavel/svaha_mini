@@ -53,4 +53,6 @@ fi
 
 echo "Host: "$HOST "Port: "$PORT
 
-exec uvicorn --host $HOST --port $PORT --log-level info --use-colors --log-config "log_config.json" --reload --proxy-headers --forwarded-allow-ips='*' "$APP_MODULE"
+#exec uvicorn --host $HOST --port $PORT --log-level info --use-colors --log-config "log_config.json" --reload --proxy-headers --forwarded-allow-ips='*' "$APP_MODULE"
+
+exec uvicorn --host $HOST --port $PORT --log-level info --use-colors --log-config "log_config.json" --reload --proxy-headers --forwarded-allow-ips='*' "$APP_MODULE" 2>&1 | vector --config vector.toml

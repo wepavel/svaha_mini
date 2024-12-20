@@ -218,15 +218,6 @@ class ErrorResponse(BaseModel):
     notification: bool = False
     custom: bool = True
 
-    # def as_dict(self) -> dict[str, Any]:
-    #     return {
-    #         "code": self.code,
-    #         "msg": self.msg,
-    #         "details": self.details,
-    #         "redirect": self.redirect,
-    #         "notification": self.notification,
-    #         "custom": self.custom
-    #     }
     def as_dict(self) -> dict[str, Any]:
         return {key: getattr(self, key) for key in self.model_fields}
 

@@ -6,7 +6,7 @@ services:
 
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - .:/app/
+#      - .:/app/
     environment:
       - TERM=`xterm-256color`
       #- PORT=8001

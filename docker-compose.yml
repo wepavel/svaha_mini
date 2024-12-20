@@ -9,8 +9,9 @@ services:
       - env_file
 
     volumes:
-      - .:/app  # Монтируем текущую директорию в /app внутри контейнера
-      - ./result:/app
+      - .:/app/  # Монтируем текущую директорию в /app внутри контейнера
+#      - .:/app/
+#      - ./result:/app
 
 secrets:
   env_file:

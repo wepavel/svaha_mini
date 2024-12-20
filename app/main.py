@@ -7,8 +7,28 @@ from app.core.config import settings
 from app.core.exceptions import exception_handler
 from app.core.openapi import custom_openapi
 from fastapi.middleware.cors import CORSMiddleware
+
+from contextlib import asynccontextmanager
+from app.core.logging import logger
+from typing import AsyncGenerator
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    level = settings.LOG_LEVEL
+    logger.info('App successfully started')
+    #
+    # uvicorn_logger = logging.getLogger('uvicorn')
+    # uvicorn_logger.setLevel(level)
+    # uvicorn_logger.handlers[0].setFormatter(UvicornCommonLogFormatter())
+    #
+    # access_logger = logging.getLogger('uvicorn.access')
+    # access_logger.setLevel(level)
+    # access_logger.handlers[0].setFormatter(UvicornAccessLogFormatter())
+    yield
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
+    lifespan=lifespan,
     # openapi_url=f'{settings.API_V1_STR}/openapi.json',
     openapi_url=f'{settings.API_V1_STR}/openapi.json',
     # root_path=settings.API_V1_STR
@@ -17,6 +37,8 @@ app = FastAPI(
     # openapi_url="/openapi.json",
     # static_url="/static"
 )
+
+
 
 custom_openapi(app)
 exception_handler(app)
