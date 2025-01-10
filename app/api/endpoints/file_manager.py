@@ -1,12 +1,14 @@
-import asyncio
+from asyncio import sleep as async_sleep
+import math
 import time
 from typing import Any
 
-from fastapi import APIRouter, Cookie, File, UploadFile, WebSocket, WebSocketDisconnect, Request, BackgroundTasks
-from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
+from fastapi import APIRouter, Cookie, File, Request, UploadFile, WebSocket
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from starlette.background import BackgroundTask
-from asyncio import sleep as async_sleep
 
+from app.api.sse_eventbus import NotificationType, Position, broadcast_msg, event_bus, wg_msg
+from app.api.ws_manager import ws_manager
 from app.core.config import settings
 from app.core.exceptions import EXC, ErrorCode
 from app.core.logging import logger
@@ -16,12 +18,6 @@ from app.models.task import TaskStatus
 from app.services.processing import r_queue
 from app.services.redis_service import redis_service
 from app.services.s3_async import ClientType, s3
-from app.api.ws_manager import ws_manager
-from app.api.sse_eventbus import event_bus, wg_msg, payment_message, NotificationType, Position, broadcast_msg
-
-import math
-from time import time as count_time
-import json
 
 router = APIRouter()
 
@@ -30,13 +26,12 @@ ALLOWED_EXTENSIONS = {'mp3', 'wav', 'ogg'}
 FILE_MAX_SIZE = 100 * 1024 * 1024  # 100 MB
 
 
-
 class AvgProcTime:
     def __init__(self):
-        self.avg_time = 0 # Average processing time in seconds
+        self.avg_time = 0  # Average processing time in seconds
 
     async def set_avg_processing_time(self, time: int) -> None:
-        self.avg_time = (self.avg_time + time)/2
+        self.avg_time = (self.avg_time + time) / 2
 
     async def get_avg_processing_time(self) -> int:
         return self.avg_time
@@ -48,22 +43,22 @@ avg_time_manager = AvgProcTime()
 async def get_client_domain(request: Request) -> str:
     def extract_domain(url: str) -> str:
         # Убираем протокол
-        domain = url.split("://")[-1]
+        domain = url.split('://')[-1]
         # Убираем путь и параметры запроса
-        domain = domain.split("/")[0]
+        domain = domain.split('/')[0]
         # Убираем порт
-        domain = domain.split(":")[0]
+        domain = domain.split(':')[0]
         return domain
 
-    origin = request.headers.get("origin")
+    origin = request.headers.get('origin')
     if origin:
         return extract_domain(origin)
 
-    referer = request.headers.get("referer")
+    referer = request.headers.get('referer')
     if referer:
         return extract_domain(referer)
 
-    return "Unknown"
+    return 'Unknown'
 
 
 @router.get('/session')
@@ -94,19 +89,19 @@ async def get_session(session_id: str | None = Cookie(None)) -> JSONResponse:
     #     raise HTTPException(status_code=404, detail="Session not found")
 
     # Set custom header for all environments
-    response.headers["X-Session-Token"] = session_id
+    response.headers['X-Session-Token'] = session_id
 
     # Add the custom header to Access-Control-Expose-Headers
-    response.headers["Access-Control-Expose-Headers"] = "X-Session-Token"
+    response.headers['Access-Control-Expose-Headers'] = 'X-Session-Token'
 
     return response
 
 
 @router.post('/upload-mp3/', response_model=SessionPublic)
 async def upload_audio(
-        vocal: UploadFile = File(..., max_size=FILE_MAX_SIZE),
-        instrumental: UploadFile = File(..., max_size=FILE_MAX_SIZE),
-        session_id: str | None = Cookie(None)
+    vocal: UploadFile = File(..., max_size=FILE_MAX_SIZE),
+    instrumental: UploadFile = File(..., max_size=FILE_MAX_SIZE),
+    session_id: str | None = Cookie(None),
 ) -> SessionPublic:
     """
     Uploads two MP3 files (voice and instrumental) to S3 storage and create task to
@@ -140,7 +135,7 @@ async def upload_audio(
         raise EXC(ErrorCode.ValidationError, details={'reason': 'Files must have allowed extensions'})
 
     # position = await redis_service.get_position(session_id)
-    position = await redis_service.get_session_data(session_id, position = True)
+    position = await redis_service.get_session_data(session_id, position=True)
 
     if position is not None:
         raise EXC(ErrorCode.TaskAlreadyExists)
@@ -160,7 +155,7 @@ async def upload_audio(
             while contents := await file.read(CHUNK_SIZE):
                 await upload_context.upload_part(contents)
 
-                await redis_service.set_progress(session_id, int(chunks_uploaded*100/total_chunks))
+                await redis_service.set_progress(session_id, int(chunks_uploaded * 100 / total_chunks))
                 chunks_uploaded += 1
 
     await redis_service.set_progress(session_id, 0)
@@ -181,16 +176,11 @@ async def upload_audio(
     return SessionPublic(session_id=session_id, position=position)
 
 
-@router.get("/track-settings")
+@router.get('/track-settings')
 async def get_track_settings():
     settings = {
         'instrumental_settings': [
-            {
-                'id': 'bitcrusher',
-                'title': 'Bitcrusher',
-                'value': False,
-                'type': 'checkbox'
-            },
+            {'id': 'bitcrusher', 'title': 'Bitcrusher', 'value': False, 'type': 'checkbox'},
         ],
         'voice_settings': [
             {
@@ -233,21 +223,17 @@ async def get_track_settings():
                 'step': 1,
                 'startPoint': 0,
             },
-            {
-                'id': 'autotune',
-                'title': 'Autotune',
-                'value': False,
-                'type': 'checkbox'
-            },
+            {'id': 'autotune', 'title': 'Autotune', 'value': False, 'type': 'checkbox'},
         ],
         'style_settings': [
-        { 'id': 'foo', 'title': 'Foo', 'value': True, 'type': 'button' },
-        { 'id': 'bar', 'title': 'Bar', 'value': False, 'type': 'button' },
-        { 'id': 'baz', 'title': 'Baz', 'value': False, 'type': 'button' }
-    ],
+            {'id': 'foo', 'title': 'Foo', 'value': True, 'type': 'button'},
+            {'id': 'bar', 'title': 'Bar', 'value': False, 'type': 'button'},
+            {'id': 'baz', 'title': 'Baz', 'value': False, 'type': 'button'},
+        ],
     }
 
     return JSONResponse(content=settings)
+
 
 @router.get('/status', response_model=Session)
 async def get_status(session_id: str | None = Cookie(None)) -> Any:
@@ -255,11 +241,7 @@ async def get_status(session_id: str | None = Cookie(None)) -> Any:
     Get status of current task
     """
     session_data = await redis_service.get_session_data(
-        session_id,
-        status = True,
-        position = True,
-        completed_timestamp=True,
-        download_url=True
+        session_id, status=True, position=True, completed_timestamp=True, download_url=True
     )
     status = session_data.get('status', None)
     if not status:
@@ -273,9 +255,11 @@ async def get_status(session_id: str | None = Cookie(None)) -> Any:
         download_url = session_data.get('download_url', None)
 
         completed_timestamp = session_data.get('completed_timestamp', None)
-    elif (TaskStatus(status) != TaskStatus.FAILED and
-          TaskStatus(status) != TaskStatus.INIT and
-          TaskStatus(status) != TaskStatus.UPLOADING):
+    elif (
+        TaskStatus(status) != TaskStatus.FAILED
+        and TaskStatus(status) != TaskStatus.INIT
+        and TaskStatus(status) != TaskStatus.UPLOADING
+    ):
         avg_time = await avg_time_manager.get_avg_processing_time()
         estimated_time = position * avg_time
 
@@ -294,15 +278,15 @@ async def get_status(session_id: str | None = Cookie(None)) -> Any:
 async def websocket_endpoint(websocket: WebSocket, session_id: str | None = Cookie(None)):
     await ws_manager.connect(websocket, session_id)
     if session_id is None:
-        await ws_manager.send_personal_message(websocket, {"error": "Session not found"})
+        await ws_manager.send_personal_message(websocket, {'error': 'Session not found'})
 
     try:
         while True:
             session_data = await redis_service.get_session_data(
                 session_id,
-                status = True,
-                progress= True,
-                position = True,
+                status=True,
+                progress=True,
+                position=True,
             )
 
             await ws_manager.send_personal_message(websocket, session_data)
@@ -312,7 +296,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str | None = Cook
         ws_manager.disconnect(session_id)
 
 
-@router.get("/active-connections", response_model=dict[str, Any])
+@router.get('/active-connections', response_model=dict[str, Any])
 async def get_active_connections():
     """
     Получить список активных SSE подключений.
@@ -321,6 +305,7 @@ async def get_active_connections():
     # Здесь можно добавить проверку прав доступа, если это необходимо
     active_connections = await event_bus.get_active_connections()
     return active_connections
+
 
 # @router.post("/send_payment_message")
 # async def send_payment_message(session_id: str | None = Cookie(None)):
@@ -332,23 +317,23 @@ async def get_active_connections():
 #     )
 #     return {"status": status}
 
-@router.post("/send_wg_message")
+
+@router.post('/send_wg_message')
 async def send_wg_message(session_id: str | None = Cookie(None)):
     status = await wg_msg(
-        session_id,
-        f'Hello {session_id} from wg message',
-        NotificationType.INFO,
-        Position.RIGHT_BOTTOM
+        session_id, f'Hello {session_id} from wg message', NotificationType.INFO, Position.RIGHT_BOTTOM
     )
-    return {"status": status}
+    return {'status': status}
 
-@router.post("/send_msg_to_all/{msg}")
+
+@router.post('/send_msg_to_all/{msg}')
 async def send_msg_to_all(msg: str):
     status = await broadcast_msg(
         msg,
         NotificationType.INFO,
     )
-    return {"status": status}
+    return {'status': status}
+
 
 # @router.get("/status")
 # async def get_status():
@@ -360,18 +345,19 @@ async def send_msg_to_all(msg: str):
 #     return {"status": new_status}
 
 
-@router.get("/sse-status")
+@router.get('/sse-status')
 async def listen_events(request: Request, session_id: str | None = Cookie(None)):
     if not session_id:
         raise EXC(ErrorCode.Unauthorized)
 
     client_host = request.client.host
-    logger.info(f"SSE connection established for session {session_id} from {client_host}")
+    logger.info(f'SSE connection established for session {session_id} from {client_host}')
     await event_bus.add_connection(session_id, connection_info={'client_host': client_host})
+
     async def event_generator():
         try:
             async for event in event_bus.listen(session_id):
-                yield f"data: {event}\n\n"
+                yield f'data: {event}\n\n'
             # while True:
             #     if await request.is_disconnected():
             #         logger.info(f"Client disconnected for session {session_id} from {client_host}")
@@ -380,23 +366,29 @@ async def listen_events(request: Request, session_id: str | None = Cookie(None))
             #     try:
             #     event = await asyncio.wait_for(event_bus.listen(session_id))
             #     yield f"data: {event}\n\n"
-                # except asyncio.TimeoutError:
-                #     # Отправка heartbeat каждые 15 секунд
-                #     yield f"event: heartbeat\ndata: ping\n\n"
-                #     break
+            # except asyncio.TimeoutError:
+            #     # Отправка heartbeat каждые 15 секунд
+            #     yield f"event: heartbeat\ndata: ping\n\n"
+            #     break
         except PermissionError as e:
-            yield f"event: error\ndata: {str(e)}\n\n"
-        except Exception as e:
-            yield f"event: error\ndata: An unexpected error occurred\n\n"
-            logger.exception("Error in SSE stream")
+            yield f'event: error\ndata: {e!s}\n\n'
+        except Exception:
+            yield 'event: error\ndata: An unexpected error occurred\n\n'
+            logger.exception('Error in SSE stream')
         finally:
             await event_bus.remove_connection(session_id)
-            logger.info(f"SSE connection closed for session {session_id} from {client_host}")
+            logger.info(f'SSE connection closed for session {session_id} from {client_host}')
+
+    return StreamingResponse(
+        event_generator(),
+        media_type='text/event-stream',
+        background=BackgroundTask(
+            lambda: logger.info(f'2) SSE connection fully closed for session {session_id} from {client_host}')
+        ),
+    )
 
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream", background=BackgroundTask(lambda: logger.info(f"2) SSE connection fully closed for session {session_id} from {client_host}")))
 #     # return StreamingResponse(event_generator(), media_type="text/event-stream")
-
 
 
 # @router.post("/shutdown/{user_id}")
@@ -593,6 +585,7 @@ def html_new(user_id):
     """
     return p0 + p2
 
+
 def html_ws(user_id):
     p0 = """<!DOCTYPE html>
 <html>
@@ -664,6 +657,7 @@ def html_ws(user_id):
 </html>
 """
     return p0 + p2 + p3
+
 
 @router.get('/get_user_ws')
 async def get_ws(session_id: str | None = Cookie(None)):

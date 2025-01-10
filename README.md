@@ -48,8 +48,8 @@ brew services stop redis
 
 - [x] To Cum
 - [x] Implement Minio (Local/Self-hosted S3)
-- [ ] Instrumental upload
-- [ ] Vocal upload
+- [x] Instrumental upload
+- [x] Vocal upload
 - [ ] Additional vocal upload
 - [ ] Uploading progress sending
 - [ ] Settings receive

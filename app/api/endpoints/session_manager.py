@@ -9,7 +9,7 @@ from app.core.exceptions import EXC, ErrorCode
 from app.core.utils import generate_id
 from app.models.session import Session, SessionPublic
 from app.services.processing import r_queue
-from app.services.redis_service import TaskStatus, redis_service, redis_base
+from app.services.redis_service import TaskStatus, redis_base, redis_service
 
 # from test_worker import redis
 

@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Any, Dict, List
+from typing import Any
 import zipfile
 
 import boto3
@@ -151,12 +151,12 @@ class S3Manager:
                     files_list.append({'file_name': file_name, 'last_modified': last_modified})
         return files_list
 
-    def list_objects_full(self, dir_key: str = '') -> List[Dict[str, Any]]:
+    def list_objects_full(self, dir_key: str = '') -> list[dict[str, Any]]:
         response = self.s3_client.list_objects_v2(Bucket=self.bucket_name, Prefix=dir_key)
         return response.get('Contents', [])
 
     @handle_s3_exceptions
-    def get_file_info(self, file_key: str) -> Dict[str, Any] | None:
+    def get_file_info(self, file_key: str) -> dict[str, Any] | None:
         response = self.s3_client.head_object(Bucket=self.bucket_name, Key=file_key)
         return response
 

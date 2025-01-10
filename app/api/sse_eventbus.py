@@ -1,27 +1,31 @@
-from typing import AsyncGenerator, Any
-from pydantic import BaseModel, Field
-import aioredis
 import asyncio
+from collections.abc import AsyncGenerator
 from enum import Enum
-from aioredis.exceptions import RedisError
-import time
 import json
+from typing import Any
 
+import aioredis
+from aioredis.exceptions import RedisError
+from pydantic import BaseModel, Field
+
+from app.core.logging import logger
 from app.core.utils import generate_id
 from app.services.redis_service import BaseRedis, redis_base
-from app.core.logging import logger
+
 
 class NotificationType(str, Enum):
-    CRITICAL = "CRITICAL"
-    WARNING = "WARNING"
-    INFO = "INFO"
-    SUCCESS = "SUCCESS"
+    CRITICAL = 'CRITICAL'
+    WARNING = 'WARNING'
+    INFO = 'INFO'
+    SUCCESS = 'SUCCESS'
+
 
 class Position(str, Enum):
-    LEFT_TOP = "left-top"
-    LEFT_BOTTOM = "left-bottom"
-    RIGHT_TOP = "right-top"
-    RIGHT_BOTTOM = "right-bottom"
+    LEFT_TOP = 'left-top'
+    LEFT_BOTTOM = 'left-bottom'
+    RIGHT_TOP = 'right-top'
+    RIGHT_BOTTOM = 'right-bottom'
+
 
 class EventData(BaseModel):
     user_id: str
@@ -29,6 +33,7 @@ class EventData(BaseModel):
     notification_type: NotificationType = Field(default=NotificationType.SUCCESS)
     position: Position = Field(default=Position.RIGHT_BOTTOM)
     info: dict | None = None
+
 
 class Event(BaseModel):
     name: str
@@ -40,14 +45,17 @@ class Event(BaseModel):
             'data': self.data.model_dump_json(),
         }
 
+
 class SSEEventBus:
-    def __init__(self, base_redis: BaseRedis, max_events_per_user: int = 100, message_lifetime: int = 3600) -> None:  # redis_url: str = "redis://localhost:6379"
+    def __init__(
+        self, base_redis: BaseRedis, max_events_per_user: int = 100, message_lifetime: int = 3600
+    ) -> None:  # redis_url: str = "redis://localhost:6379"
         self.redis: aioredis.Redis = base_redis.get_redis()
         self.max_events_per_user = max_events_per_user
         self.message_lifetime = message_lifetime
-        self.sse_connection_key = "sse:active_connections"
-        self.broadcast_channel = "broadcast:all"
-        self.broadcast_key = "broadcast:messages"
+        self.sse_connection_key = 'sse:active_connections'
+        self.broadcast_channel = 'broadcast:all'
+        self.broadcast_key = 'broadcast:messages'
 
     # async def add_connection(self, user_id: str):
     #     try:
@@ -59,7 +67,7 @@ class SSEEventBus:
             connection_info = connection_info or {}
             await self.redis.hset(self.sse_connection_key, user_id, json.dumps(connection_info))
         except RedisError as e:
-            logger.error(f"Error adding connection for user {user_id}: {e}")
+            logger.error(f'Error adding connection for user {user_id}: {e}')
 
     # async def remove_connection(self, user_id: str):
     #     await self.redis.hincrby(self.sse_connection_key, user_id, -1)
@@ -85,10 +93,10 @@ class SSEEventBus:
             await self.redis.hdel(self.sse_connection_key, user_id)
             logger.info(f'Connection for user {user_id} removed')
         except RedisError as e:
-            logger.error(f"Error removing connection for user {user_id}: {e}")
+            logger.error(f'Error removing connection for user {user_id}: {e}')
 
     async def close_all_connections(self):
-        logger.info(f'Closing all connections')
+        logger.info('Closing all connections')
         active_connections = await self.get_active_connections()
         for user_id in active_connections:
             await self.shutdown(user_id)
@@ -125,25 +133,25 @@ class SSEEventBus:
                 try:
                     value = json.loads(v.decode() if isinstance(v, bytes) else v)
                     if not isinstance(value, dict):
-                        value = {"value": value}
+                        value = {'value': value}
                 except json.JSONDecodeError:
-                    value = {"value": v.decode() if isinstance(v, bytes) else v}
+                    value = {'value': v.decode() if isinstance(v, bytes) else v}
                 result[key] = value
             return result
         except RedisError as e:
-            logger.error(f"Error getting active connections: {e}")
-            return {"error": {"message": str(e)}}
+            logger.error(f'Error getting active connections: {e}')
+            return {'error': {'message': str(e)}}
 
     async def shutdown(self, user_id: str) -> None:
         # await self.post(user_id, Event(name="__exit__", data=EventData(user_id=user_id, message="Shutdown")))
         event = Event(
-            name="__exit__",
+            name='__exit__',
             data=EventData(
                 user_id=user_id,
-                message="Server is shutting down. Please reconnect.",
+                message='Server is shutting down. Please reconnect.',
                 notification_type=NotificationType.WARNING,
-                position=Position.RIGHT_TOP
-            )
+                position=Position.RIGHT_TOP,
+            ),
         )
         await self.post(user_id, event)
 
@@ -163,7 +171,7 @@ class SSEEventBus:
 
                 await pipe.execute()
 
-            logger.info(f"Broadcast message sent: {event.name}")
+            logger.info(f'Broadcast message sent: {event.name}')
             asyncio.create_task(self._delete_broadcast_message_after_delay(message_id, event_json))
         except RedisError as e:
             logger.error(f'Redis error in broadcast: {e}')
@@ -172,13 +180,13 @@ class SSEEventBus:
         await asyncio.sleep(self.message_lifetime)
         try:
             await self.redis.lrem(self.broadcast_key, 1, event_json)
-            logger.info(f"Broadcast message {message_id} deleted after {self.message_lifetime} seconds")
+            logger.info(f'Broadcast message {message_id} deleted after {self.message_lifetime} seconds')
         except RedisError as e:
             logger.error(f'Redis error in _delete_broadcast_message_after_delay: {e}')
 
     async def post(self, user_id: str, event: Event) -> None:
         try:
-            event_key = f"event:{user_id}"
+            event_key = f'event:{user_id}'
             event_json = event.model_dump_json()
             message_id = generate_id()
 
@@ -200,21 +208,21 @@ class SSEEventBus:
     async def _delete_message_after_delay(self, user_id: str, message_id: str, event_json: str):
         await asyncio.sleep(self.message_lifetime)
         try:
-            event_key = f"event:{user_id}"
+            event_key = f'event:{user_id}'
             await self.redis.lrem(event_key, 1, event_json)
-            logger.info(f"Message {message_id} for user {user_id} deleted after {self.message_lifetime} seconds")
+            logger.info(f'Message {message_id} for user {user_id} deleted after {self.message_lifetime} seconds')
         except RedisError as e:
             logger.error(f'Redis error in _delete_message_after_delay: {e}')
 
     async def listen(self, user_id: str) -> AsyncGenerator[dict[str, str], None]:
         pubsub = self.redis.pubsub()
-        logger.info(f"Listening for user {user_id} events")
+        logger.info(f'Listening for user {user_id} events')
         try:
-            await pubsub.subscribe(f"user:{user_id}", self.broadcast_channel)
+            await pubsub.subscribe(f'user:{user_id}', self.broadcast_channel)
             # await self.add_connection(user_id)
 
             # Send the most recent events
-            event_key = f"event:{user_id}"
+            event_key = f'event:{user_id}'
             events = await self.redis.lrange(event_key, 0, -1)
 
             for event_json in events:
@@ -223,7 +231,11 @@ class SSEEventBus:
 
             async for message in pubsub.listen():
                 if message['type'] == 'message':
-                    channel = message['channel'].decode('utf-8') if isinstance(message['channel'], bytes) else message['channel']
+                    channel = (
+                        message['channel'].decode('utf-8')
+                        if isinstance(message['channel'], bytes)
+                        else message['channel']
+                    )
                     event = Event.model_validate_json(message['data'])
 
                     if channel == self.broadcast_channel:
@@ -231,7 +243,7 @@ class SSEEventBus:
                         event.data.info['broadcast'] = True
 
                     if event.name == '__exit__' and channel != self.broadcast_channel:
-                        await pubsub.unsubscribe(f"user:{user_id}", self.broadcast_channel)
+                        await pubsub.unsubscribe(f'user:{user_id}', self.broadcast_channel)
                         await pubsub.close()
                         await self.remove_connection(user_id)
                         return
@@ -243,46 +255,53 @@ class SSEEventBus:
             logger.error(f'Error listening on pubsub: {e}')
 
         finally:
-            await pubsub.unsubscribe(f"user:{user_id}", "broadcast:all")
+            await pubsub.unsubscribe(f'user:{user_id}', 'broadcast:all')
             await pubsub.close()
-            logger.info(f'Pubsub closed')
+            logger.info('Pubsub closed')
             # await self.remove_connection(user_id)
 
 
 event_bus = SSEEventBus(redis_base, max_events_per_user=10, message_lifetime=5)
 
-async def payment_message(user_id: str, message: str, notification_type: NotificationType = NotificationType.SUCCESS, position: Position = Position.RIGHT_BOTTOM) -> None:
+
+async def payment_message(
+    user_id: str,
+    message: str,
+    notification_type: NotificationType = NotificationType.SUCCESS,
+    position: Position = Position.RIGHT_BOTTOM,
+) -> None:
     event = Event(
         name='message',
         data=EventData(
             user_id=user_id,
             message=f'Payment was successful\n{message}',
             notification_type=notification_type,
-            position=position
-        )
+            position=position,
+        ),
     )
     await event_bus.post(user_id, event)
 
-async def wg_msg(user_id: str, message: str, notification_type: NotificationType = NotificationType.SUCCESS, position: Position = Position.RIGHT_BOTTOM) -> None:
+
+async def wg_msg(
+    user_id: str,
+    message: str,
+    notification_type: NotificationType = NotificationType.SUCCESS,
+    position: Position = Position.RIGHT_BOTTOM,
+) -> None:
     event = Event(
         name='message',
-        data=EventData(
-            user_id=user_id,
-            message=message,
-            notification_type=notification_type,
-            position=position
-        )
+        data=EventData(user_id=user_id, message=message, notification_type=notification_type, position=position),
     )
     await event_bus.post(user_id, event)
 
-async def broadcast_msg(message: str, notification_type: NotificationType = NotificationType.INFO, position: Position = Position.RIGHT_BOTTOM) -> None:
+
+async def broadcast_msg(
+    message: str,
+    notification_type: NotificationType = NotificationType.INFO,
+    position: Position = Position.RIGHT_BOTTOM,
+) -> None:
     event = Event(
         name='broadcast_message',
-        data=EventData(
-            user_id='broadcast',
-            message=message,
-            notification_type=notification_type,
-            position=position
-        )
+        data=EventData(user_id='broadcast', message=message, notification_type=notification_type, position=position),
     )
     await event_bus.broadcast(event)

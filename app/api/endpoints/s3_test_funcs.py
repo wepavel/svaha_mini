@@ -1,5 +1,4 @@
 from io import BytesIO
-from typing import Dict
 from urllib.parse import quote
 
 from fastapi import APIRouter, File, Form, UploadFile
@@ -12,7 +11,7 @@ router = APIRouter()
 
 
 @router.post('/upload/')
-async def upload_file(key: str = '', file: UploadFile = File(...)) -> Dict[str, str]:
+async def upload_file(key: str = '', file: UploadFile = File(...)) -> dict[str, str]:
     try:
         contents = await file.read()
         file_stream = BytesIO(contents)
@@ -55,7 +54,7 @@ async def get_file_url(key: str) -> RedirectResponse:
 
 
 @router.delete('/delete/{key:path}')
-async def delete_file(key: str) -> Dict[str, str]:
+async def delete_file(key: str) -> dict[str, str]:
     try:
         await s3.delete_object(key)
         return {'message': 'File deleted successfully'}
@@ -64,7 +63,7 @@ async def delete_file(key: str) -> Dict[str, str]:
 
 
 @router.delete('/delete_dir/{key:path}')
-async def delete_dir(key: str) -> Dict[str, str]:
+async def delete_dir(key: str) -> dict[str, str]:
     try:
         await s3.delete_dir(key)
         return {'message': 'Directory deleted successfully'}

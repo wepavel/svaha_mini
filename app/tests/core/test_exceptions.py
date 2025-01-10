@@ -8,6 +8,7 @@ from app.main import app
 # Create a test client
 client = TestClient(app)
 
+
 # Example route to trigger exceptions
 @app.get('/raise-http-exception/{error_code}')
 async def raise_http_exception(error_code: int) -> None:
@@ -20,6 +21,7 @@ async def raise_http_exception(error_code: int) -> None:
 @app.get('/raise-validation-error')
 async def raise_validation_error() -> None:
     raise RequestValidationError(errors=[{'loc': ['body'], 'msg': 'field required', 'type': 'value_error.missing'}])
+
 
 def test_starlette_http_exception() -> None:
     response = client.get('/raise-http-exception/5999')  # This will raise a 404
@@ -57,11 +59,12 @@ def test_validation_error() -> None:
     expected_response = ErrorCode.ValidationError.value.model_copy(deep=True)
     expected_response.details = {
         'endpoint': '/raise-validation-error',
-        'errors': [{'loc': ['body'], 'msg': 'field required', 'type': 'value_error.missing'}]
+        'errors': [{'loc': ['body'], 'msg': 'field required', 'type': 'value_error.missing'}],
     }
     expected_json = expected_response.model_dump(exclude={'custom'})
 
     assert response.json() == expected_json
+
 
 # # Example route to trigger exceptions
 # @app.get('/raise-http-exception/{error_code}')

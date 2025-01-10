@@ -25,7 +25,6 @@ class BaseRedis:
             logger.error('Error connecting to Redis server. Please check the connection settings.')
             raise e
 
-
     # async def get_status(self, session_id: str) -> str | None:
     #     return await self.redis.hget(f'session:{session_id}', 'status')
     #
@@ -44,7 +43,6 @@ class BaseRedis:
     # async def get_download_url(self, session_id: str) -> str | None:
     #     return await self.redis.hget(f'session:{session_id}', 'download_url')
 
-
     async def clear_storage(self) -> None:
         await self.redis.flushdb()
 
@@ -62,12 +60,7 @@ class APIRedis:
     async def init_task(self, session_id: str) -> None:
         async with self.redis.pipeline() as pipe:
             await pipe.hset(
-                f'session:{session_id}',
-                mapping={
-                    'status': TaskStatus.INIT.value,
-                    'progress': 0,
-                    'download_url': ''
-                }
+                f'session:{session_id}', mapping={'status': TaskStatus.INIT.value, 'progress': 0, 'download_url': ''}
             )
             await pipe.execute()
 
@@ -81,21 +74,21 @@ class APIRedis:
                     'progress': 0,
                     'status': TaskStatus.QUEUED.value,
                     'timestamp': datetime.now().timestamp(),
-                    'download_url': ''
-                }
+                    'download_url': '',
+                },
             )
             await pipe.execute()
 
     async def get_session_data(
-            self,
-            session_id: str,
-            *,
-            status: bool = False,
-            progress: bool = False,
-            track_id: bool = False,
-            position: bool = False,
-            completed_timestamp: bool = False,
-            download_url: bool = False,
+        self,
+        session_id: str,
+        *,
+        status: bool = False,
+        progress: bool = False,
+        track_id: bool = False,
+        position: bool = False,
+        completed_timestamp: bool = False,
+        download_url: bool = False,
     ) -> dict[str, str | int | float | None]:
         """
         Retrieves session data for the specified fields using Redis pipeline.
@@ -139,21 +132,19 @@ class APIRedis:
                 value = results[0]
                 if fields[0] == 'progress':
                     return int(value) if value is not None else None
-                elif fields[0] == 'completed_timestamp':
+                if fields[0] == 'completed_timestamp':
                     return float(value) if value is not None else None
+                return value
+            data = {}
+            for field, value in zip(fields, results, strict=False):
+                if field == 'progress':
+                    data[field] = int(value) if value is not None else None
+                elif field == 'completed_timestamp':
+                    data[field] = float(value) if value is not None else None
                 else:
-                    return value
-            else:
-                data = {}
-                for field, value in zip(fields, results):
-                    if field == 'progress':
-                        data[field] = int(value) if value is not None else None
-                    elif field == 'completed_timestamp':
-                        data[field] = float(value) if value is not None else None
-                    else:
-                        data[field] = value
+                    data[field] = value
 
-                return data
+            return data
 
     async def set_status(self, session_id: str, status: TaskStatus) -> None:
         async with self.redis.pipeline() as pipe:
@@ -188,10 +179,14 @@ class APIRedis:
         async with self.redis.pipeline() as pipe:
             await pipe.hset(
                 f'session:{session_id}',
-                mapping={'status': status.value, 'completed_timestamp': datetime.now().timestamp(),
-                         'download_url': None},
+                mapping={
+                    'status': status.value,
+                    'completed_timestamp': datetime.now().timestamp(),
+                    'download_url': None,
+                },
             )
             await pipe.lrem('processing_queue', 1, session_id)
             await pipe.execute()
+
 
 redis_service = APIRedis(redis_base)

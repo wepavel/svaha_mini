@@ -1,6 +1,9 @@
-from fastapi import WebSocket
-from app.core.logging import logger
 from typing import Any
+
+from fastapi import WebSocket
+
+from app.core.logging import logger
+
 
 class WSConnectionManager:
     def __init__(self):

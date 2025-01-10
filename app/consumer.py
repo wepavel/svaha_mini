@@ -1,22 +1,22 @@
 import asyncio
 import json
-from app.core.logging import logger, bind_contextvars, clear_contextvars
-# import logging
 
+# import logging
 import aio_pika
 from aio_pika.abc import AbstractRobustConnection
 from aio_pika.pool import Pool
 
 from app.core.config import settings
+from app.core.logging import bind_contextvars, logger
+from app.models.task import TaskStatus
 from app.services.redis_service import redis_service
 from app.services.s3_async import s3
-from app.models.task import TaskStatus
 
 
 async def main() -> None:
     # clear_contextvars()
     bind_contextvars(service='consumer')
-    logger.info("Consumer started")
+    logger.info('Consumer started')
     # logger
 
     async def get_connection() -> AbstractRobustConnection:
@@ -59,7 +59,9 @@ async def main() -> None:
                                 f'{message["session_id"]}/{message["task_id"]}/R.mp3',
                                 'svaha-mini-output',
                             )
-                            track_url = f'{settings.S3_PUBLIC_DOMAIN}/{message["session_id"]}/{message["task_id"]}/R.mp3'
+                            track_url = (
+                                f'{settings.S3_PUBLIC_DOMAIN}/{message["session_id"]}/{message["task_id"]}/R.mp3'
+                            )
                             await asyncio.sleep(5)
                             await redis_service.complete_task(message['session_id'], track_url)
                         except:

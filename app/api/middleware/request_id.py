@@ -1,11 +1,10 @@
 from contextvars import ContextVar
 
-import structlog
-import ulid
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.middleware.base import RequestResponseEndpoint
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
+import structlog
+import ulid
 
 event_id: ContextVar[str] = ContextVar('request_id', default='')
 

@@ -1,17 +1,15 @@
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from enum import Enum
 from functools import wraps
 import io
 from io import BytesIO
 import logging
 import os
-from typing import Any, Dict, List
+from typing import Any
 import zipfile
 
 import aioboto3
-from contextlib import asynccontextmanager
-from typing import AsyncGenerator
-
-
 from botocore import client as botocore_client
 from botocore.client import BaseClient
 from botocore.exceptions import ClientError
@@ -172,8 +170,9 @@ class S3Manager:
     #         return complete_result
 
     @asynccontextmanager
-    async def multipart_upload_context(self, file_key: str, bucket_name: str,
-                                       client_type: ClientType = ClientType.ROOT) -> AsyncGenerator:
+    async def multipart_upload_context(
+        self, file_key: str, bucket_name: str, client_type: ClientType = ClientType.ROOT
+    ) -> AsyncGenerator:
         async with await self.get_client(client_type) as client:
             try:
                 multipart_upload = await client.create_multipart_upload(
@@ -249,7 +248,6 @@ class S3Manager:
             latest_subfolder = max(subfolders, key=lambda x: x.split('/')[-2])
             logger.info(f'Latest subfolder found: {latest_subfolder}')
             return latest_subfolder
-
 
     @handle_s3_exceptions
     async def delete_object(self, file_key: str, bucket_name: str) -> None:
@@ -336,14 +334,14 @@ class S3Manager:
                     files_list.append({'file_name': file_name, 'last_modified': last_modified})
         return files_list
 
-    async def list_objects_full(self, bucket_name: str, dir_key: str = '') -> List[Dict[str, Any]]:
+    async def list_objects_full(self, bucket_name: str, dir_key: str = '') -> list[dict[str, Any]]:
         async with await self.get_client() as client:
             # response = await client.list_objects_v2(Bucket=self.bucket_name, Prefix=dir_key)
             response = await client.list_objects_v2(Bucket=bucket_name, Prefix=dir_key)
         return response.get('Contents', [])
 
     @handle_s3_exceptions
-    async def get_file_info(self, file_key: str, bucket_name: str) -> Dict[str, Any] | None:
+    async def get_file_info(self, file_key: str, bucket_name: str) -> dict[str, Any] | None:
         async with await self.get_client() as client:
             # response = await client.head_object(Bucket=self.bucket_name, Key=file_key)
             response = await client.head_object(Bucket=bucket_name, Key=file_key)
@@ -430,19 +428,10 @@ class MultipartUploadContext:
 
     async def upload_part(self, chunk: bytes):
         response = await self.client.upload_part(
-            Bucket=self.bucket_name,
-            Key=self.file_key,
-            UploadId=self.upload_id,
-            PartNumber=self.part_number,
-            Body=chunk
+            Bucket=self.bucket_name, Key=self.file_key, UploadId=self.upload_id, PartNumber=self.part_number, Body=chunk
         )
-        self.parts.append({
-            'PartNumber': self.part_number,
-            'ETag': response['ETag']
-        })
+        self.parts.append({'PartNumber': self.part_number, 'ETag': response['ETag']})
         self.part_number += 1
 
 
 s3 = S3Manager()
-
-

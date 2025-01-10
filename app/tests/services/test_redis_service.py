@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.models.task import TaskStatus
-from app.services.redis_service import BaseRedis, APIRedis
+from app.services.redis_service import APIRedis, BaseRedis
 
 
 @pytest.fixture
@@ -24,6 +24,7 @@ def redis_service(mock_redis: AsyncMock) -> APIRedis:
     service = APIRedis(base_redis)
     service.redis = mock_redis
     return service
+
 
 @pytest.fixture
 def redis_base_service(mock_redis: AsyncMock) -> BaseRedis:
@@ -88,13 +89,12 @@ async def test_get_position(redis_service: APIRedis) -> None:
     # position = await redis_service.get_position(session_id)
     position = await redis_service.get_session_data(session_id=session_id, position=True)
 
-
     pipeline_mock.lpos.assert_awaited_once_with('processing_queue', session_id)
     pipeline_mock.execute.assert_awaited_once()
     # redis_service.redis.lpos.assert_awaited_once_with('processing_queue', session_id)
     assert position == expected_position
-#
-#
+
+
 @pytest.mark.asyncio
 async def test_get_completed_timestamp(redis_service: APIRedis) -> None:
     session_id = 'test_session'
