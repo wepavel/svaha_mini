@@ -3,28 +3,35 @@ from fastapi import FastAPI
 import uvicorn
 
 from app.api import api_router
+from app.api.sse_eventbus import event_bus
 from app.core.config import settings
 from app.core.exceptions import exception_handler
 from app.core.openapi import custom_openapi
 from fastapi.middleware.cors import CORSMiddleware
 
 from contextlib import asynccontextmanager
-from app.core.logging import logger
+from app.core.logging import UvicornAccessLogFormatter, UvicornCommonLogFormatter, bind_contextvars
+from app.api.middleware.request_id import RequestIDMiddleware
 from typing import AsyncGenerator
+import logging
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+
     level = settings.LOG_LEVEL
-    logger.info('App successfully started')
-    #
-    # uvicorn_logger = logging.getLogger('uvicorn')
-    # uvicorn_logger.setLevel(level)
-    # uvicorn_logger.handlers[0].setFormatter(UvicornCommonLogFormatter())
-    #
-    # access_logger = logging.getLogger('uvicorn.access')
-    # access_logger.setLevel(level)
-    # access_logger.handlers[0].setFormatter(UvicornAccessLogFormatter())
+
+    uvicorn_logger = logging.getLogger('uvicorn')
+    uvicorn_logger.setLevel(level)
+    uvicorn_logger.handlers[0].setFormatter(UvicornCommonLogFormatter())
+
+    access_logger = logging.getLogger('uvicorn.access')
+    access_logger.setLevel(level)
+    access_logger.handlers[0].setFormatter(UvicornAccessLogFormatter())
+
+
     yield
+
+    await event_bus.close_all_connections()
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -42,18 +49,18 @@ app = FastAPI(
 
 custom_openapi(app)
 exception_handler(app)
-
+# app.add_middleware(RequestIDMiddleware)
 
 # for origin in settings.BACKEND_CORS_ORIGINS: print(str(origin).rstrip('/'))
 
 
-app.add_middleware(
-    CORSMiddleware,
-    # allow_origins=[str(origin).rstrip('/') for origin in settings.BACKEND_CORS_ORIGINS],
-    allow_credentials=True,
-    allow_methods=['*'],
-    allow_headers=['*'],
-)
+# app.add_middleware(
+#     CORSMiddleware,
+#     # allow_origins=[str(origin).rstrip('/') for origin in settings.BACKEND_CORS_ORIGINS],
+#     allow_credentials=True,
+#     allow_methods=['*'],
+#     allow_headers=['*'],
+# )
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 

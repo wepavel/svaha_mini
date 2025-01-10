@@ -9,7 +9,7 @@ from app.core.exceptions import EXC, ErrorCode
 from app.core.utils import generate_id
 from app.models.session import Session, SessionPublic
 from app.services.processing import r_queue
-from app.services.redis_service import TaskStatus, redis_service
+from app.services.redis_service import TaskStatus, redis_service, redis_base
 
 # from test_worker import redis
 
@@ -105,7 +105,7 @@ async def clear() -> Any:
     """
     Clear Redis storage
     """
-    await redis_service.clear_storage()
+    await redis_base.clear_storage()
 
 
 @router.get('/exc_test')

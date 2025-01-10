@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     PORT: int = os.getenv('PORT', 8001)
 
     PROJECT_NAME: str = 'Default Project Name'
-    LOG_LEVEL: str = os.getenv('LOG_LEVEL', 'INFO')
+    LOG_LEVEL: str = os.getenv('LOG_LEVEL', 'DEBUG')
     # LOG_PATH: str = os.getenv('LOG_PATH', './logs')
 
     SESSION_EXPIRE_MINUTES: int = 60 * 24 * 365 # 1 year

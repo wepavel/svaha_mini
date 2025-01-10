@@ -1,6 +1,7 @@
 import asyncio
 import json
-import logging
+from app.core.logging import logger, bind_contextvars, clear_contextvars
+# import logging
 
 import aio_pika
 from aio_pika.abc import AbstractRobustConnection
@@ -13,6 +14,11 @@ from app.models.task import TaskStatus
 
 
 async def main() -> None:
+    # clear_contextvars()
+    bind_contextvars(service='consumer')
+    logger.info("Consumer started")
+    # logger
+
     async def get_connection() -> AbstractRobustConnection:
         return await aio_pika.connect_robust(
             host=settings.RABBITMQ_HOST,
@@ -43,7 +49,8 @@ async def main() -> None:
             async with queue.iterator() as queue_iter:
                 async for message in queue_iter:
                     async with message.process():
-                        print(message.body)
+                        # print(f'Received message: {message.body}')
+                        logger.info(json.dumps(json.loads(message.body), indent=2))
                         message = json.loads(message.body)
                         try:
                             await redis_service.set_status(message['session_id'], TaskStatus.IN_PROGRESS)
@@ -56,7 +63,7 @@ async def main() -> None:
                             await asyncio.sleep(5)
                             await redis_service.complete_task(message['session_id'], track_url)
                         except:
-                            logging.error('Error uploading file from core')
+                            logger.error('Error uploading file from core')
                             await redis_service.delete_task(message['session_id'])
 
     async with connection_pool, channel_pool:

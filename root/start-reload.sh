@@ -45,7 +45,7 @@ echo "APP_MODULE" $APP_MODULE
 # Start consumer.py in the background
 if [ -f /app/app/consumer.py ]; then
     echo "Starting consumer.py in the background"
-    python /app/app/consumer.py &
+    python /app/app/consumer.py 2>&1  | vector --config vector.toml &
     echo "consumer.py started"
 else
     echo "consumer.py not found in /app directory"
@@ -55,4 +55,5 @@ echo "Host: "$HOST "Port: "$PORT
 
 #exec uvicorn --host $HOST --port $PORT --log-level info --use-colors --log-config "log_config.json" --reload --proxy-headers --forwarded-allow-ips='*' "$APP_MODULE"
 
-exec uvicorn --host $HOST --port $PORT --log-level info --use-colors --log-config "log_config.json" --reload --proxy-headers --forwarded-allow-ips='*' "$APP_MODULE" 2>&1 | vector --config vector.toml
+#exec uvicorn --host $HOST --port $PORT --log-level info --use-colors --log-config "log_config.json" --reload --proxy-headers --forwarded-allow-ips='*' "$APP_MODULE" 2>&1 | vector --config vector.toml
+exec uvicorn --host $HOST --port $PORT --log-level info --use-colors --log-config "log_config.json" --proxy-headers --forwarded-allow-ips='*' "$APP_MODULE" 2>&1 | vector --config vector.toml

@@ -6,7 +6,7 @@ from tenacity import after_log, before_log, retry, stop_after_attempt, wait_fixe
 from app.core.config import settings
 from app.core.logging import logger
 from app.services.processing import r_queue
-from app.services.redis_service import redis_service
+from app.services.redis_service import redis_base as redis_service
 from app.services.s3_async import s3
 
 max_tries = 60 * 5  # 5 minutes

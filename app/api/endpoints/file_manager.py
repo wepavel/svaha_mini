@@ -1,10 +1,10 @@
-from email.quoprimime import unquote
-from io import BytesIO
+import asyncio
 import time
 from typing import Any
 
-from fastapi import APIRouter, Cookie, File, UploadFile, WebSocket, WebSocketDisconnect, Request
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi import APIRouter, Cookie, File, UploadFile, WebSocket, WebSocketDisconnect, Request, BackgroundTasks
+from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
+from starlette.background import BackgroundTask
 from asyncio import sleep as async_sleep
 
 from app.core.config import settings
@@ -17,6 +17,7 @@ from app.services.processing import r_queue
 from app.services.redis_service import redis_service
 from app.services.s3_async import ClientType, s3
 from app.api.ws_manager import ws_manager
+from app.api.sse_eventbus import event_bus, wg_msg, payment_message, NotificationType, Position, broadcast_msg
 
 import math
 from time import time as count_time
@@ -71,6 +72,8 @@ async def get_session(session_id: str | None = Cookie(None)) -> JSONResponse:
     """
     Get session id and set it into cookie
     """
+
+    logger.info('Hello world!')
     response = JSONResponse(content={})
     if session_id is None:
         session_id = generate_id(datetime_flag=True)
@@ -153,7 +156,7 @@ async def upload_audio(
     async def upload_file(file: UploadFile, file_key: str, bucket_name: str) -> None:
         nonlocal chunks_uploaded
 
-        async with s3.multipart_upload_context(file_key, bucket_name) as upload_context:
+        async with s3.multipart_upload_context(file_key, bucket_name, ClientType.WRITER) as upload_context:
             while contents := await file.read(CHUNK_SIZE):
                 await upload_context.upload_part(contents)
 
@@ -177,24 +180,74 @@ async def upload_audio(
 
     return SessionPublic(session_id=session_id, position=position)
 
-# @router.get("/download-project-result")
-# async def download_project_result(session_id: str | None = Cookie(None)):
-#     if session_id is None:
-#         raise EXC(ErrorCodes.SessionNotFound)
-#
-#     last_track = await s3.get_latest_subfolder(f'{session_id}/', 'svaha-mini-output')
-#     if not last_track:
-#         raise EXC(ErrorCodes.CoreFileUploadingError)
-#
-#     file_url = f'https://s3.machine-prod.ru/svaha-mini-output/{last_track}R.mp3'
-#
-#     return {"download_url": file_url}
-#         #     file_irl = await s3.get_file_url(file_key, 'svaha-mini-output')
-#     #     return RedirectResponse(url=file_irl, status_code=303)
-#     # except Exception as e:
-#     #     # TODO: create new exception for this
-#     #     raise EXC(ErrorCodes.CoreFileUploadingError, details={'reason': str(e)})
 
+@router.get("/track-settings")
+async def get_track_settings():
+    settings = {
+        'instrumental_settings': [
+            {
+                'id': 'bitcrusher',
+                'title': 'Bitcrusher',
+                'value': False,
+                'type': 'checkbox'
+            },
+        ],
+        'voice_settings': [
+            {
+                'id': 'volume',
+                'title': 'Volume',
+                'type': 'slider',
+                'value': 0,
+                'min': -80,
+                'max': 10,
+                'step': 1,
+                'startPoint': 0,
+            },
+            {
+                'id': 'tonal_balance',
+                'title': 'Tonal balance',
+                'type': 'slider',
+                'value': 50,
+                'min': 0,
+                'max': 100,
+                'step': 1,
+                'startPoint': 50,
+            },
+            {
+                'id': 'hardness',
+                'title': 'Hardness',
+                'type': 'slider',
+                'value': 7,
+                'min': 0,
+                'max': 10,
+                'step': 1,
+                'startPoint': 5,
+            },
+            {
+                'id': 'echo',
+                'title': 'Echo',
+                'type': 'slider',
+                'value': 10,
+                'min': 0,
+                'max': 10,
+                'step': 1,
+                'startPoint': 0,
+            },
+            {
+                'id': 'autotune',
+                'title': 'Autotune',
+                'value': False,
+                'type': 'checkbox'
+            },
+        ],
+        'style_settings': [
+        { 'id': 'foo', 'title': 'Foo', 'value': True, 'type': 'button' },
+        { 'id': 'bar', 'title': 'Bar', 'value': False, 'type': 'button' },
+        { 'id': 'baz', 'title': 'Baz', 'value': False, 'type': 'button' }
+    ],
+    }
+
+    return JSONResponse(content=settings)
 
 @router.get('/status', response_model=Session)
 async def get_status(session_id: str | None = Cookie(None)) -> Any:
@@ -237,29 +290,6 @@ async def get_status(session_id: str | None = Cookie(None)) -> Any:
     )
 
 
-# async def send_task_status(websocket: WebSocket, session_id: str):
-#
-#     try:
-#         while True:
-#             session_data = await redis_service.get_session_data(
-#                 session_id,
-#                 status = True,
-#                 progress= True,
-#                 position = True,
-#             )
-#
-#             await websocket.send_json({
-#                 'status': session_data.get('status', None),
-#                 'progress': session_data.get('progress', None),
-#                 'position': session_data.get('position', None),
-#             })
-#
-#             await async_sleep(0.1)
-#     except WebSocketDisconnect:
-#         logger.info(f'Websocket accepted: session_id={session_id}')
-#         raise
-
-
 @router.websocket('/ws-status')
 async def websocket_endpoint(websocket: WebSocket, session_id: str | None = Cookie(None)):
     await ws_manager.connect(websocket, session_id)
@@ -277,119 +307,369 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str | None = Cook
 
             await ws_manager.send_personal_message(websocket, session_data)
 
-            await async_sleep(0.1)
-    except WebSocketDisconnect:
+            await async_sleep(1)
+    finally:
         ws_manager.disconnect(session_id)
 
 
-    # await websocket.accept()
-    # if session_id is None:
-    #     await websocket.send_json({"error": "Session not found"})
-    #     # await websocket.close()
-    # else:
+@router.get("/active-connections", response_model=dict[str, Any])
+async def get_active_connections():
+    """
+    Получить список активных SSE подключений.
+    Возвращает словарь, где ключ - это user_id, а значение - количество активных подключений для этого пользователя.
+    """
+    # Здесь можно добавить проверку прав доступа, если это необходимо
+    active_connections = await event_bus.get_active_connections()
+    return active_connections
 
-    # await send_task_status(websocket, session_id)
+# @router.post("/send_payment_message")
+# async def send_payment_message(session_id: str | None = Cookie(None)):
+#     status = await payment_message(
+#         session_id,
+#         f'Hello {session_id} from payment message',
+#         NotificationType.INFO,
+#         Position.RIGHT_BOTTOM
+#     )
+#     return {"status": status}
 
-# async def event_generator(session_id: str):
-#     while True:
-#         await async_sleep(0.1)
-#         status = await redis_service.get_status(session_id)
-#         if not session_id:
-#             yield "data: {\"error\": \"Session not found\"}\n\n"
-#             # break
-#         if not status:
-#             yield "data: {\"error\": \"Task not found\"}\n\n"
-#             # break
-#
-#         yield f"data: {{\"status\": \"{status}\", \"progress\": \"{await redis_service.get_progress(session_id)}\"}}\n\n"
-# async def event_generator(session_id: str):
-#     previous_status = None
-#
-#     while True:
-#         await async_sleep(0.1)
-#         status = await redis_service.get_status(session_id)
-#
-#         if not session_id:
-#             data = {"error": "Session not found"}
-#             yield f"data: {json.dumps(data)}\n\n"
-#             # break
-#         elif not status:
-#             data = {"error": "Task not found"}
-#             yield f"data: {json.dumps(data)}\n\n"
-#             # break
-#         else:
-#             if status != previous_status:
-#                 previous_status = status
-#                 data = {
-#                     "status": status,
-#                     "progress": await redis_service.get_progress(session_id)
-#                 }
-#                 yield f"data: {json.dumps(data)}\n\n"
+@router.post("/send_wg_message")
+async def send_wg_message(session_id: str | None = Cookie(None)):
+    status = await wg_msg(
+        session_id,
+        f'Hello {session_id} from wg message',
+        NotificationType.INFO,
+        Position.RIGHT_BOTTOM
+    )
+    return {"status": status}
 
-# @router.get('/sse-status')
-# async def sse_endpoint(session_id: str | None = Cookie(None)):
-#     if session_id is None:
-#         data =
-#         yield f"data: {json.dumps(data)}\n\n"
-# @router.get("/sse-status")
-# async def sse_endpoint(session_id: str | None = Cookie(None)):
-#     # if session_id is None:
-#     #     return StreamingResponse("data: {\"error\": \"Session not found\"}\n\n", media_type="text/event-stream")
-#     async def generate_message(session_id) -> json:
-#         session_data = await redis_service.get_session_data(
-#             session_id,
-#             status=True,
-#             progress=True,
-#             position=True,
-#         )
+@router.post("/send_msg_to_all/{msg}")
+async def send_msg_to_all(msg: str):
+    status = await broadcast_msg(
+        msg,
+        NotificationType.INFO,
+    )
+    return {"status": status}
+
+# @router.get("/status")
+# async def get_status():
+#     return {"status": await event_bus.get_status()}
 #
-#     async def event_generator(session_id: str):
-#         previous_status = None
-#
-#         while True:
-            # await async_sleep(0.1)
-            # status = await redis_service.get_status(session_id)
+# @router.post("/set_status")
+# async def set_status(status: str):
+#     new_status = await event_bus.set_status(status)
+#     return {"status": new_status}
+
+
+@router.get("/sse-status")
+async def listen_events(request: Request, session_id: str | None = Cookie(None)):
+    if not session_id:
+        raise EXC(ErrorCode.Unauthorized)
+
+    client_host = request.client.host
+    logger.info(f"SSE connection established for session {session_id} from {client_host}")
+    await event_bus.add_connection(session_id, connection_info={'client_host': client_host})
+    async def event_generator():
+        try:
+            async for event in event_bus.listen(session_id):
+                yield f"data: {event}\n\n"
+            # while True:
+            #     if await request.is_disconnected():
+            #         logger.info(f"Client disconnected for session {session_id} from {client_host}")
+            #         break
             #
-            # if not session_id:
-            #     data = {"error": "Session not found"}
-            #     yield f"data: {json.dumps(data)}\n\n"
-            #     # break
-            # elif not status:
-            #     data = {"error": "Task not found"}
-            #     yield f"data: {json.dumps(data)}\n\n"
-            #     # break
-            # else:
-            #     if status != previous_status:
-            #         previous_status = status
-            #         data = {
-            #             "status": status,
-            #             "progress": await redis_service.get_progress(session_id)
-            #         }
-            #         yield f"data: {json.dumps(data)}\n\n"
-
-    # return StreamingResponse(event_generator(session_id), media_type="text/event-stream")
+            #     try:
+            #     event = await asyncio.wait_for(event_bus.listen(session_id))
+            #     yield f"data: {event}\n\n"
+                # except asyncio.TimeoutError:
+                #     # Отправка heartbeat каждые 15 секунд
+                #     yield f"event: heartbeat\ndata: ping\n\n"
+                #     break
+        except PermissionError as e:
+            yield f"event: error\ndata: {str(e)}\n\n"
+        except Exception as e:
+            yield f"event: error\ndata: An unexpected error occurred\n\n"
+            logger.exception("Error in SSE stream")
+        finally:
+            await event_bus.remove_connection(session_id)
+            logger.info(f"SSE connection closed for session {session_id} from {client_host}")
 
 
-html = """
-<!DOCTYPE html>
+    return StreamingResponse(event_generator(), media_type="text/event-stream", background=BackgroundTask(lambda: logger.info(f"2) SSE connection fully closed for session {session_id} from {client_host}")))
+#     # return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+
+# @router.post("/shutdown/{user_id}")
+# async def shutdown(user_id: str, background_tasks: BackgroundTasks):
+#     background_tasks.add_task(event_bus.shutdown, user_id)
+#     return {"message": f"Shutdown initiated for user {user_id}"}
+#
+# @router.get("/user_messages/{user_id}")
+# async def get_user_messages(user_id: str):
+#     messages = await event_bus.get_user_messages(user_id)
+#     return {"messages": messages}
+
+
+# @router.get("/ws-docs", response_class=HTMLResponse, include_in_schema=True)
+# async def get_ws_docs():
+#     return html
+
+
+def html(user_id):
+
+    p0 = """<!DOCTYPE html>
 <html>
     <head>
-        <title>WebSocket Documentation</title>
+        <title>SSE Listener</title>
     </head>
+    <style>
+    html * {
+      font-size: 12px !important;
+      color: #0f0 !important;
+      font-family: Andale Mono !important;
+      background-color: #000;
+    }
+
+    </style>
+            """
+    p2 = f"""
     <body>
-        <h1>WebSocket Endpoint</h1>
-        <p>This is a WebSocket endpoint for real-time communication.</p>
-        <p>To connect to the WebSocket, use the following URL:</p>
-        <pre>wss://wss.machine-prod.ru/ws</pre>
-        <p>The WebSocket endpoint supports the following messages:</p>
-        <ul>
-            <li><code>{"type": "subscribe", "channel": "events"}</code> - Subscribe to the "events" channel.</li>
-            <li><code>{"type": "unsubscribe", "channel": "events"}</code> - Unsubscribe from the "events" channel.</li>
-        </ul>
+        <h1>EventSource Of User {user_id}</h1>
+        <script>
+            let eventSource;
+            // EventSource;
+            // WebSocket
+            eventSource = new EventSource('https://api.machine-prod.ru/sse/v1/files/sse-status');"""
+    p3 = """
+              eventSource.onopen = function(e) {
+                log("Event: open");
+              };
+
+              eventSource.onerror = function(e) {
+                log("Event: error");
+                if (this.readyState == EventSource.CONNECTING) {
+                  log(`Reconnecting (readyState=${this.readyState})...`);
+                } else {
+                  log("Error.");
+                }
+              };
+
+              eventSource.addEventListener('test', function(e) {
+                log("Event: test, data: " + e.data);
+              });
+
+              eventSource.onmessage = function(e) {
+                log("Event: message, data: " + e.data);
+              };
+            //}
+
+            function stop() {
+              eventSource.close();
+              log("Disconnected");
+            }
+
+            function log(msg) {
+              let time = new Date()
+              let timeval = time.getHours() + ':' + time.getMinutes() + ':' + time.getSeconds() + '  ';
+              logElem.innerHTML = timeval + msg + "<br>" + logElem.innerHTML;
+              //document.documentElement.scrollTop = 99999999;
+            }
+            </script>
+
+            <!-- <button onclick="start()">start</button> -->
+            <button onclick="log('stop')">stop</button>
+            <div id="logElem" style="margin: 6px 0"></div>
+
+            <!-- <button onclick="stop()">Stop</button> -->
+
     </body>
 </html>
 """
+    return p0 + p2 + p3
 
-@router.get("/ws-docs", response_class=HTMLResponse, include_in_schema=False)
-async def get_ws_docs():
-    return html
+
+def html_new(user_id):
+    p0 = """<!DOCTYPE html>
+    <html>
+        <head>
+            <title>SSE Listener</title>
+        </head>
+        <style>
+        html * {
+          font-size: 12px !important;
+          color: #0f0 !important;
+          font-family: Andale Mono !important;
+          background-color: #000;
+        }
+        .error {
+          color: #ff0000 !important;
+        }
+        pre {
+          white-space: pre-wrap;
+          word-wrap: break-word;
+        }
+        </style>
+                """
+    p2 = f"""
+        <body>
+            <h1>EventSource Of User {user_id}</h1>
+            <script>
+                let eventSource;
+
+                function startEventSource() {{
+                    eventSource = new EventSource('https://api.machine-prod.ru/sse/v1/files/sse-status');
+
+                    eventSource.onopen = function(e) {{
+                        log("Event: open");
+                    }};
+
+                    eventSource.onerror = function(e) {{
+                        log("Event: error", true);
+                        if (this.readyState == EventSource.CONNECTING) {{
+                            log(`Reconnecting (readyState=${{this.readyState}})...`, true);
+                        }} else {{
+                            log("Error occurred. Closing connection.", true);
+                            eventSource.close();
+                            // Попытка получить детали ошибки
+                            fetchErrorDetails();
+                        }}
+                    }};
+
+                    eventSource.addEventListener('test', function(e) {{
+                        log("Event: test, data: " + e.data);
+                    }});
+
+                    eventSource.onmessage = function(e) {{
+                        try {{
+                            const data = JSON.parse(e.data);
+                            if (data.code && data.code >= 4000 && data.code <= 5999) {{
+                                log("Error event received:", true);
+                                log('<pre>' + JSON.stringify(data, null, 2) + '</pre>', true);
+                            }} else {{
+                                log("Event: message, data: " + e.data);
+                            }}
+                        }} catch (error) {{
+                            log("Event: message, data: " + e.data);
+                        }}
+                    }};
+                }}
+
+                function fetchErrorDetails() {{
+                    fetch('https://api.machine-prod.ru/sse/v1/files/sse-status')
+                        .then(response => response.json())
+                        .catch(error => {{
+                            return {{ msg: 'Network error', details: error.message }};
+                        }})
+                        .then(data => {{
+                            log("Error details:", true);
+                            log('<pre>' + JSON.stringify(data, null, 2) + '</pre>', true);
+                        }});
+                }}
+
+                function stop() {{
+                    if (eventSource) {{
+                        eventSource.close();
+                        log("Disconnected");
+                    }}
+                }}
+
+                function log(msg, isError = false) {{
+                    let time = new Date()
+                    let timeval = time.getHours() + ':' + time.getMinutes() + ':' + time.getSeconds() + '  ';
+                    let className = isError ? 'error' : '';
+                    logElem.innerHTML = `<div class="${{className}}">${{timeval}}${{msg}}</div>` + logElem.innerHTML;
+                }}
+
+                // Запускаем EventSource при загрузке страницы
+                startEventSource();
+                </script>
+
+                <button onclick="stop()">Stop</button>
+                <button onclick="startEventSource()">Restart</button>
+                <div id="logElem" style="margin: 6px 0"></div>
+
+        </body>
+    </html>
+    """
+    return p0 + p2
+
+def html_ws(user_id):
+    p0 = """<!DOCTYPE html>
+<html>
+    <head>
+        <title>Test</title>
+    </head>
+    <style>
+    html * {
+      font-size: 12px !important;
+      color: #0f0 !important;
+      font-family: Andale Mono !important;
+      background-color: #000;
+    }
+    </style>
+    """
+    p2 = f"""
+    <body>
+        <h1>WebSocket Of User {user_id}</h1>
+        <script>
+            let socket;
+
+            function connect() {{
+                socket = new WebSocket('wss://api.machine-prod.ru/ws/v1/files/ws-status');
+    """
+    p3 = """
+                socket.onopen = function(e) {
+                    log("Connection established");
+                };
+
+                socket.onmessage = function(event) {
+                    log("Received data: " + event.data);
+                };
+
+                socket.onerror = function(error) {
+                    log("WebSocket Error: " + error.message);
+                };
+
+                socket.onclose = function(event) {
+                    if (event.wasClean) {
+                        log(`Connection closed cleanly, code=${event.code} reason=${event.reason}`);
+                    } else {
+                        log('Connection died');
+                    }
+                };
+            }
+
+            function stop() {
+                if (socket) {
+                    socket.close();
+                    log("Disconnected");
+                }
+            }
+
+            function log(msg) {
+                let time = new Date()
+                let timeval = time.getHours() + ':' + time.getMinutes() + ':' + time.getSeconds() + '  ';
+                logElem.innerHTML = timeval + msg + "<br>" + logElem.innerHTML;
+            }
+
+            // Автоматически подключаемся при загрузке страницы
+            connect();
+        </script>
+
+        <button onclick="stop()">Stop</button>
+        <button onclick="connect()">Reconnect</button>
+        <div id="logElem" style="margin: 6px 0"></div>
+
+    </body>
+</html>
+"""
+    return p0 + p2 + p3
+
+@router.get('/get_user_ws')
+async def get_ws(session_id: str | None = Cookie(None)):
+    return HTMLResponse(html_ws(session_id))
+
+
+@router.get('/get_user_sse')
+async def get_sse(session_id: str | None = Cookie(None)):
+    return HTMLResponse(html(session_id))

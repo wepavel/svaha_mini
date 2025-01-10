@@ -84,6 +84,8 @@ multidict==6.0.5
 numpy==2.1.3
     # via contourpy
     # via matplotlib
+orjson==3.10.12
+    # via svaha-mini-backend
 packaging==24.2
     # via matplotlib
 pamqp==3.3.0
@@ -119,6 +121,8 @@ sniffio==1.3.1
 starlette==0.38.4
     # via fastapi
 streaming-form-data==1.19.0
+    # via svaha-mini-backend
+structlog==24.4.0
     # via svaha-mini-backend
 tenacity==9.0.0
     # via svaha-mini-backend

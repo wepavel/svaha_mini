@@ -7,7 +7,7 @@ from app.core.logging import logger
 from app.models.task import TaskStatus
 
 
-class Redis:
+class BaseRedis:
     def __init__(self) -> None:
         self.redis = aioredis.Redis(
             host=settings.REDIS_HOST,
@@ -24,6 +24,40 @@ class Redis:
         except ConnectionError as e:
             logger.error('Error connecting to Redis server. Please check the connection settings.')
             raise e
+
+
+    # async def get_status(self, session_id: str) -> str | None:
+    #     return await self.redis.hget(f'session:{session_id}', 'status')
+    #
+    # async def get_progress(self, session_id: str) -> int | None:
+    #     return await self.redis.hget(f'session:{session_id}', 'progress')
+    #
+    # async def get_track_id(self, session_id: str) -> str | None:
+    #     return await self.redis.hget(f'session:{session_id}', 'track_id')
+    #
+    # async def get_position(self, session_id: str) -> str | None:
+    #     return await self.redis.lpos('processing_queue', session_id)
+    #
+    # async def get_completed_timestamp(self, session_id: str) -> float | None:
+    #     return await self.redis.hget(f'session:{session_id}', 'completed_timestamp')
+    #
+    # async def get_download_url(self, session_id: str) -> str | None:
+    #     return await self.redis.hget(f'session:{session_id}', 'download_url')
+
+
+    async def clear_storage(self) -> None:
+        await self.redis.flushdb()
+
+    def get_redis(self) -> aioredis.Redis:
+        return self.redis
+
+
+redis_base = BaseRedis()
+
+
+class APIRedis:
+    def __init__(self, redis: BaseRedis):
+        self.redis = redis.get_redis()
 
     async def init_task(self, session_id: str) -> None:
         async with self.redis.pipeline() as pipe:
@@ -51,24 +85,6 @@ class Redis:
                 }
             )
             await pipe.execute()
-
-    async def get_status(self, session_id: str) -> str | None:
-        return await self.redis.hget(f'session:{session_id}', 'status')
-
-    async def get_progress(self, session_id: str) -> int | None:
-        return await self.redis.hget(f'session:{session_id}', 'progress')
-
-    async def get_track_id(self, session_id: str) -> str | None:
-        return await self.redis.hget(f'session:{session_id}', 'track_id')
-
-    async def get_position(self, session_id: str) -> str | None:
-        return await self.redis.lpos('processing_queue', session_id)
-
-    async def get_completed_timestamp(self, session_id: str) -> float | None:
-        return await self.redis.hget(f'session:{session_id}', 'completed_timestamp')
-
-    async def get_download_url(self, session_id: str) -> str | None:
-        return await self.redis.hget(f'session:{session_id}', 'download_url')
 
     async def get_session_data(
             self,
@@ -139,8 +155,6 @@ class Redis:
 
                 return data
 
-
-
     async def set_status(self, session_id: str, status: TaskStatus) -> None:
         async with self.redis.pipeline() as pipe:
             await pipe.hset(
@@ -174,13 +188,10 @@ class Redis:
         async with self.redis.pipeline() as pipe:
             await pipe.hset(
                 f'session:{session_id}',
-                mapping={'status': status.value, 'completed_timestamp': datetime.now().timestamp(), 'download_url': None},
+                mapping={'status': status.value, 'completed_timestamp': datetime.now().timestamp(),
+                         'download_url': None},
             )
             await pipe.lrem('processing_queue', 1, session_id)
             await pipe.execute()
 
-    async def clear_storage(self) -> None:
-        await self.redis.flushdb()
-
-
-redis_service = Redis()
+redis_service = APIRedis(redis_base)
