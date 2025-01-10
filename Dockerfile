@@ -16,7 +16,8 @@ ADD ./requirements.lock /app/requirements.lock
 ADD ./pyproject.toml /app/pyproject.toml
 ADD ./README.md /app/README.md
 
-RUN uv pip install --no-cache --system -r requirements.lock
+#RUN uv pip install --no-cache --system -r requirements.lock
+RUN uv pip install --no-cache --system -r pyproject.toml
 
 COPY ./app /app
 ENV PYTHONPATH=/app

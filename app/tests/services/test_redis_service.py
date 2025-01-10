@@ -1,11 +1,12 @@
+from collections.abc import AsyncGenerator
 from datetime import datetime
-from typing import Any, AsyncGenerator
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from app.models.task import TaskStatus
-from app.services.redis_service import Redis
+from app.services.redis_service import BaseRedis, APIRedis
 
 
 @pytest.fixture
@@ -18,10 +19,17 @@ def mock_redis() -> AsyncMock:
 
 
 @pytest.fixture
-def redis_service(mock_redis: AsyncMock) -> Redis:
-    service = Redis()
+def redis_service(mock_redis: AsyncMock) -> APIRedis:
+    base_redis = BaseRedis()
+    service = APIRedis(base_redis)
     service.redis = mock_redis
     return service
+
+@pytest.fixture
+def redis_base_service(mock_redis: AsyncMock) -> BaseRedis:
+    base_service = BaseRedis()
+    base_service.redis = mock_redis
+    return base_service
 
 
 @pytest.fixture
@@ -33,7 +41,7 @@ def mock_datetime() -> AsyncGenerator[Any, None]:
 
 
 # @pytest.mark.asyncio
-# async def test_create_task(redis_service: Redis, mock_datetime: Any) -> None:
+# async def test_create_task(redis_service: APIRedis, mock_datetime: Any) -> None:
 #     session_id = 'test_session'
 #     track_id = 'test_track'
 #
@@ -52,38 +60,55 @@ def mock_datetime() -> AsyncGenerator[Any, None]:
 
 
 @pytest.mark.asyncio
-async def test_get_status(redis_service: Redis) -> None:
+async def test_get_status(redis_service: APIRedis) -> None:
     session_id = 'test_session'
-    expected_status = TaskStatus.QUEUED
-    redis_service.redis.hget = AsyncMock(return_value=expected_status)
+    expected_status = TaskStatus.QUEUED.value  # Используем .value, так как Redis хранит строковые значения
 
-    status = await redis_service.get_status(session_id)
+    pipeline_mock = AsyncMock()
+    pipeline_mock.execute.return_value = [expected_status]
+    redis_service.redis.pipeline.return_value.__aenter__.return_value = pipeline_mock
 
-    redis_service.redis.hget.assert_awaited_once_with(f'session:{session_id}', 'status')
-    assert status == expected_status
+    result = await redis_service.get_session_data(session_id=session_id, status=True)
+
+    pipeline_mock.hget.assert_awaited_once_with(f'session:{session_id}', 'status')
+    pipeline_mock.execute.assert_awaited_once()
+
+    assert result == expected_status
 
 
 @pytest.mark.asyncio
-async def test_get_position(redis_service: Redis) -> None:
+async def test_get_position(redis_service: APIRedis) -> None:
     session_id = 'test_session'
     expected_position = 1
-    redis_service.redis.lpos = AsyncMock(return_value=expected_position)
 
-    position = await redis_service.get_position(session_id)
+    pipeline_mock = AsyncMock()
+    pipeline_mock.execute.return_value = [expected_position]
+    redis_service.redis.pipeline.return_value.__aenter__.return_value = pipeline_mock
 
-    redis_service.redis.lpos.assert_awaited_once_with('processing_queue', session_id)
+    # position = await redis_service.get_position(session_id)
+    position = await redis_service.get_session_data(session_id=session_id, position=True)
+
+
+    pipeline_mock.lpos.assert_awaited_once_with('processing_queue', session_id)
+    pipeline_mock.execute.assert_awaited_once()
+    # redis_service.redis.lpos.assert_awaited_once_with('processing_queue', session_id)
     assert position == expected_position
-
-
+#
+#
 @pytest.mark.asyncio
-async def test_get_completed_timestamp(redis_service: Redis) -> None:
+async def test_get_completed_timestamp(redis_service: APIRedis) -> None:
     session_id = 'test_session'
     expected_timestamp = datetime.now().timestamp()
-    redis_service.redis.hget = AsyncMock(return_value=expected_timestamp)
 
-    timestamp = await redis_service.get_completed_timestamp(session_id)
+    pipeline_mock = AsyncMock()
+    pipeline_mock.execute.return_value = [expected_timestamp]
+    redis_service.redis.pipeline.return_value.__aenter__.return_value = pipeline_mock
 
-    redis_service.redis.hget.assert_awaited_once_with(f'session:{session_id}', 'completed_timestamp')
+    # timestamp = await redis_service.get_completed_timestamp(session_id)
+    timestamp = await redis_service.get_session_data(session_id=session_id, completed_timestamp=True)
+
+    pipeline_mock.hget.assert_awaited_once_with(f'session:{session_id}', 'completed_timestamp')
+    pipeline_mock.execute.assert_awaited_once()
     assert timestamp == expected_timestamp
 
 
@@ -105,30 +130,30 @@ async def test_get_completed_timestamp(redis_service: Redis) -> None:
 
 
 @pytest.mark.asyncio
-async def test_clear_storage(redis_service: Redis) -> None:
-    redis_service.redis.flushdb = AsyncMock()
+async def test_clear_storage(redis_base_service: BaseRedis) -> None:
+    redis_base_service.redis.flushdb = AsyncMock()
 
-    await redis_service.clear_storage()
+    await redis_base_service.clear_storage()
 
-    redis_service.redis.flushdb.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_check_redis_connection(redis_service: Redis) -> None:
-    redis_service.redis.ping = AsyncMock()
-
-    await redis_service.check_redis_connection()
-
-    redis_service.redis.ping.assert_awaited_once()
+    redis_base_service.redis.flushdb.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_check_redis_connection_error(redis_service: Redis) -> None:
-    redis_service.redis.ping = AsyncMock(side_effect=ConnectionError)
+async def test_check_redis_connection(redis_base_service: BaseRedis) -> None:
+    redis_base_service.redis.ping = AsyncMock()
+
+    await redis_base_service.check_redis_connection()
+
+    redis_base_service.redis.ping.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_check_redis_connection_error(redis_base_service: BaseRedis) -> None:
+    redis_base_service.redis.ping = AsyncMock(side_effect=ConnectionError)
 
     with patch('app.services.redis_service.logger') as mock_logger:
         with pytest.raises(ConnectionError):
-            await redis_service.check_redis_connection()
+            await redis_base_service.check_redis_connection()
 
         mock_logger.error.assert_called_once_with(
             'Error connecting to Redis server. Please check the connection settings.'

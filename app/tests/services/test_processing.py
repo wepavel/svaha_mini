@@ -1,13 +1,12 @@
-import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from aio_pika import Channel, Message
+from aio_pika import Channel
 from aio_pika.abc import AbstractRobustConnection
 import pytest
 
 from app.core.config import settings
 from app.services.processing import RQueue, r_queue
-from app.services.redis_service import Redis
+from app.services.redis_service import BaseRedis
 
 
 @pytest.fixture
@@ -20,8 +19,9 @@ def mock_redis() -> AsyncMock:
 
 
 @pytest.fixture
-def redis_service(mock_redis: AsyncMock) -> Redis:
-    service = Redis()
+def redis_service(mock_redis: AsyncMock) -> BaseRedis:
+    # base_redis = BaseRedis()
+    service = BaseRedis()
     service.redis = mock_redis
     service.create_task = AsyncMock()
     return service
