@@ -53,5 +53,5 @@ brew services stop redis
 - [ ] Additional vocal upload
 - [ ] Uploading progress sending
 - [ ] Settings receive
-- [ ] Mix download
+- [x] Mix download
 
