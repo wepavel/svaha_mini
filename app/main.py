@@ -4,6 +4,7 @@ import logging
 
 from fastapi import FastAPI
 import uvicorn
+from starlette.middleware.cors import CORSMiddleware
 
 from app.api import api_router
 from app.api.sse_eventbus import event_bus
@@ -51,13 +52,13 @@ exception_handler(app)
 # for origin in settings.BACKEND_CORS_ORIGINS: print(str(origin).rstrip('/'))
 
 
-# app.add_middleware(
-#     CORSMiddleware,
-#     # allow_origins=[str(origin).rstrip('/') for origin in settings.BACKEND_CORS_ORIGINS],
-#     allow_credentials=True,
-#     allow_methods=['*'],
-#     allow_headers=['*'],
-# )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=['*'],
+    allow_credentials=True,
+    allow_methods=['*'],
+    allow_headers=['*'],
+)
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 

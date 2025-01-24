@@ -3,11 +3,12 @@ import math
 import time
 from typing import Any
 
-from fastapi import APIRouter, Cookie, File, Request, UploadFile, WebSocket
+from fastapi import APIRouter, Cookie, File, Request, UploadFile, WebSocket, Path
+from typing import Annotated
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from starlette.background import BackgroundTask
 
-from app.api.sse_eventbus import NotificationType, Position, broadcast_msg, event_bus, wg_msg
+from app.api.sse_eventbus import NotificationType, Position, Event, EventData, broadcast_msg, event_bus, wg_msg
 from app.api.ws_manager import ws_manager
 from app.core.config import settings
 from app.core.exceptions import EXC, ErrorCode
@@ -18,7 +19,8 @@ from app.models.task import TaskStatus
 from app.services.processing import r_queue
 from app.services.redis_service import redis_service
 from app.services.s3_async import ClientType, s3
-
+import asyncio
+from urllib.parse import unquote
 router = APIRouter()
 
 CHUNK_SIZE = 1024 * 1024 * 5  # 64 kB
@@ -77,7 +79,7 @@ async def get_session(session_id: str | None = Cookie(None)) -> JSONResponse:
             key='session_id',
             value=session_id,
             # httponly=False,
-            samesite='none',
+            samesite='lax',
             # domain=domain,
             secure=True,
             max_age=settings.SESSION_EXPIRE_MINUTES,
@@ -97,12 +99,13 @@ async def get_session(session_id: str | None = Cookie(None)) -> JSONResponse:
     return response
 
 
-@router.post('/upload-mp3/', response_model=SessionPublic)
+@router.post('/upload-mp3/{session_id}', response_model=SessionPublic)
 async def upload_audio(
+    session_id: str,
     vocal: UploadFile = File(..., max_size=FILE_MAX_SIZE),
     instrumental: UploadFile = File(..., max_size=FILE_MAX_SIZE),
-    session_id: str | None = Cookie(None),
 ) -> SessionPublic:
+
     """
     Uploads two MP3 files (voice and instrumental) to S3 storage and create task to
     SVEDENIE
@@ -116,8 +119,12 @@ async def upload_audio(
     - EXC: If one or both files are missing or not in MP3 format.
     - EXC: If there is an error while uploading files to S3.
     """
-    if session_id is None:
-        raise EXC(ErrorCode.SessionNotFound)
+
+    cur_status = await redis_service.get_session_data(session_id, status=True)
+    if cur_status == TaskStatus.IN_PROGRESS.value \
+        or cur_status == TaskStatus.UPLOADING.value \
+        or cur_status == TaskStatus.QUEUED.value:
+        raise EXC(ErrorCode.TaskAlreadyExists)
 
     await redis_service.set_status(session_id, TaskStatus.UPLOADING)
 
@@ -155,12 +162,36 @@ async def upload_audio(
             while contents := await file.read(CHUNK_SIZE):
                 await upload_context.upload_part(contents)
 
+                event = Event(
+                    name='progress',
+                    data=EventData(
+                        id=session_id,
+                        message=f'Progress state: {int(chunks_uploaded * 100 / total_chunks)}',
+                        notification_type=NotificationType.INFO,
+                        position=Position.CENTER),
+                )
+                await event_bus.post(session_id, event)
                 await redis_service.set_progress(session_id, int(chunks_uploaded * 100 / total_chunks))
                 chunks_uploaded += 1
 
+
+
     await redis_service.set_progress(session_id, 0)
+
     await upload_file(vocal, f'{session_id}/{track_id}/V.mp3', 'svaha-mini-input')
     await upload_file(instrumental, f'{session_id}/{track_id}/M.mp3', 'svaha-mini-input')
+
+    event = Event(
+        name='progress',
+        data=EventData(id=session_id, message=f'Progress state: 100',
+                       notification_type=NotificationType.INFO, position=Position.CENTER))
+    await event_bus.post(session_id, event)
+
+    event = Event(
+        name='progress',
+        data=EventData(id=session_id, message=f'Upload have been succesfully completed',
+                       notification_type=NotificationType.SUCCESS, position=Position.CENTER))
+    await event_bus.post(session_id, event)
 
     # Send task to RabbitMQ/Redis
     message = {
@@ -175,9 +206,99 @@ async def upload_audio(
 
     return SessionPublic(session_id=session_id, position=position)
 
+async def read_in_chunks(stream, chunk_size):
+    buffer = bytearray()
+    async for data in stream:
+        buffer.extend(data)
+        while len(buffer) >= chunk_size:
+            yield buffer[:chunk_size]
+            buffer = buffer[chunk_size:]
+    if buffer:
+        yield buffer
+
+@router.post('/true-upload', response_model=SessionPublic)
+async def true_upload(
+        request: Request,
+        # type: str,
+        # session_id: str
+) -> SessionPublic:
+    content_length = int(request.headers.get('content-length', 0))
+    content_type = request.headers.get('content-type')
+
+    content_disposition = request.headers.get('content-disposition', '')
+    filename = ''
+    if 'filename' in content_disposition:
+        filename = content_disposition.split('filename=')[1].strip('"')
+        filename = unquote(filename)
+
+    if not filename:
+        filename = 'uploaded_audio.mp3'
+
+
+
+    total_read = 0
+    # async for chunk in request.stream():
+    #     total_read += len(chunk)
+    #     logger.info(f'Chunk loaded: {total_read}/{content_length} bytes')
+
+    async for chunk in read_in_chunks(request.stream(), CHUNK_SIZE):
+        total_read += len(chunk)
+        logger.info(f'Chunk loaded: {total_read}/{content_length} bytes')
+
+
+    return SessionPublic(session_id='sassss', position=14)
+
+
+@router.post('/upload-mp3-test', response_model=SessionPublic)
+async def upload_audio_test(
+    vocal: UploadFile = File(..., max_size=FILE_MAX_SIZE),
+    instrumental: UploadFile = File(..., max_size=FILE_MAX_SIZE),
+    session_id: str | None = Cookie(None),
+) -> SessionPublic:
+    if not session_id:
+        raise EXC(ErrorCode.SessionNotFound)
+    return await upload_audio(session_id, vocal, instrumental)
+
+
+@router.get('/mock-progress/{session_id}')
+async def mock_progress(session_id: str):
+    if not session_id:
+        raise EXC(ErrorCode.SessionNotFound)
+
+    for i in range(10):
+        event = Event(
+            name='progress',
+            data=EventData(
+                id=session_id,
+                message=f'Progress state: {int(i * 100 / 10)}',
+                notification_type=NotificationType.INFO,
+                position=Position.CENTER),
+        )
+        await event_bus.post(session_id, event)
+        await asyncio.sleep(1)
+
+    event = Event(
+        name='progress',
+        data=EventData(
+            id=session_id,
+            message=f'Progress state: 100',
+            notification_type=NotificationType.INFO,
+            position=Position.CENTER),
+    )
+    await event_bus.post(session_id, event)
+    event = Event(name='progress', data=EventData(id=session_id, message=f'Upload have been succesfully completed',
+                                                 notification_type=NotificationType.SUCCESS, position=Position.CENTER))
+    await event_bus.post(session_id, event)
+
+
+@router.get('/mock-progress-test')
+async def mock_progress_test(session_id: str | None = Cookie(None)):
+    if not session_id:
+        raise EXC(ErrorCode.SessionNotFound)
+    return await mock_progress(session_id)
 
 @router.get('/track-settings')
-async def get_track_settings():
+async def get_track_settings() -> JSONResponse:
     settings = {
         'instrumental_settings': [
             {'id': 'bitcrusher', 'title': 'Bitcrusher', 'value': False, 'type': 'checkbox'},
@@ -235,11 +356,13 @@ async def get_track_settings():
     return JSONResponse(content=settings)
 
 
-@router.get('/status', response_model=Session)
-async def get_status(session_id: str | None = Cookie(None)) -> Any:
+@router.get('/status/{session_id}', response_model=Session)
+async def get_status(session_id: str | None = None) -> Session:
     """
     Get status of current task
     """
+    if not session_id:
+        raise EXC(ErrorCode.SessionNotFound)
     session_data = await redis_service.get_session_data(
         session_id, status=True, position=True, completed_timestamp=True, download_url=True
     )
@@ -296,8 +419,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str | None = Cook
         ws_manager.disconnect(session_id)
 
 
-@router.get('/active-connections', response_model=dict[str, Any])
-async def get_active_connections():
+@router.get('/active-connections')
+async def get_active_connections() -> dict[str, Any]:
     """
     Получить список активных SSE подключений.
     Возвращает словарь, где ключ - это user_id, а значение - количество активных подключений для этого пользователя.
@@ -318,22 +441,57 @@ async def get_active_connections():
 #     return {"status": status}
 
 
-@router.post('/send_wg_message')
-async def send_wg_message(session_id: str | None = Cookie(None)):
+@router.post('/send-progress-message/{progress}/{session_id}')
+async def send_progress_message(progress: int, session_id: str) -> None:
+    if not session_id:
+        raise EXC(ErrorCode.SessionNotFound)
+
+    event = Event(
+        name='progress',
+        data=EventData(
+            id=session_id,
+            message=f'Progress state: {progress}',
+            notification_type=NotificationType.INFO,
+            position=Position.CENTER),
+    )
+
+    await event_bus.post(session_id, event)
+
+
+@router.post('/send-progress-message-test/{progress}')
+async def send_progress_message_test(progress: int, session_id: str | None = Cookie(None)) -> None:
+    if not session_id:
+        raise EXC(ErrorCode.SessionNotFound)
+
+    await send_progress_message(progress, session_id)
+
+
+@router.post('/send-wg-message/{session_id}')
+async def send_wg_message(session_id: str) -> dict[str, Any]:
+    if not session_id:
+        raise EXC(ErrorCode.SessionNotFound)
+
     status = await wg_msg(
         session_id, f'Hello {session_id} from wg message', NotificationType.INFO, Position.RIGHT_BOTTOM
     )
     return {'status': status}
 
+@router.post('/send-wg-message-test')
+async def send_wg_message_test(session_id: str | None = Cookie(None)) -> dict[str, Any]:
 
-@router.post('/send_msg_to_all/{msg}')
+    if not session_id:
+        raise EXC(ErrorCode.SessionNotFound)
+
+    return await send_wg_message(session_id)
+
+
+@router.post('/send-msg-to-all/{msg}')
 async def send_msg_to_all(msg: str):
     status = await broadcast_msg(
         msg,
         NotificationType.INFO,
     )
     return {'status': status}
-
 
 # @router.get("/status")
 # async def get_status():
@@ -344,9 +502,9 @@ async def send_msg_to_all(msg: str):
 #     new_status = await event_bus.set_status(status)
 #     return {"status": new_status}
 
+@router.get('/sse-status/{session_id}')
+async def listen_events(request: Request, session_id: str):
 
-@router.get('/sse-status')
-async def listen_events(request: Request, session_id: str | None = Cookie(None)):
     if not session_id:
         raise EXC(ErrorCode.Unauthorized)
 
@@ -386,6 +544,7 @@ async def listen_events(request: Request, session_id: str | None = Cookie(None))
             lambda: logger.info(f'2) SSE connection fully closed for session {session_id} from {client_host}')
         ),
     )
+
 
 
 #     # return StreamingResponse(event_generator(), media_type="text/event-stream")
@@ -431,7 +590,7 @@ def html(user_id):
             let eventSource;
             // EventSource;
             // WebSocket
-            eventSource = new EventSource('https://api.machine-prod.ru/sse/v1/files/sse-status');"""
+            eventSource = new EventSource('https://api.machine-prod.ru/sse/v1/files/sse-status/{user_id}');"""
     p3 = """
               eventSource.onopen = function(e) {
                 log("Event: open");
@@ -445,6 +604,7 @@ def html(user_id):
                   log("Error.");
                 }
               };
+              
 
               eventSource.addEventListener('test', function(e) {
                 log("Event: test, data: " + e.data);
@@ -453,6 +613,8 @@ def html(user_id):
               eventSource.onmessage = function(e) {
                 log("Event: message, data: " + e.data);
               };
+              
+              
             //}
 
             function stop() {
@@ -480,112 +642,6 @@ def html(user_id):
     return p0 + p2 + p3
 
 
-def html_new(user_id):
-    p0 = """<!DOCTYPE html>
-    <html>
-        <head>
-            <title>SSE Listener</title>
-        </head>
-        <style>
-        html * {
-          font-size: 12px !important;
-          color: #0f0 !important;
-          font-family: Andale Mono !important;
-          background-color: #000;
-        }
-        .error {
-          color: #ff0000 !important;
-        }
-        pre {
-          white-space: pre-wrap;
-          word-wrap: break-word;
-        }
-        </style>
-                """
-    p2 = f"""
-        <body>
-            <h1>EventSource Of User {user_id}</h1>
-            <script>
-                let eventSource;
-
-                function startEventSource() {{
-                    eventSource = new EventSource('https://api.machine-prod.ru/sse/v1/files/sse-status');
-
-                    eventSource.onopen = function(e) {{
-                        log("Event: open");
-                    }};
-
-                    eventSource.onerror = function(e) {{
-                        log("Event: error", true);
-                        if (this.readyState == EventSource.CONNECTING) {{
-                            log(`Reconnecting (readyState=${{this.readyState}})...`, true);
-                        }} else {{
-                            log("Error occurred. Closing connection.", true);
-                            eventSource.close();
-                            // Попытка получить детали ошибки
-                            fetchErrorDetails();
-                        }}
-                    }};
-
-                    eventSource.addEventListener('test', function(e) {{
-                        log("Event: test, data: " + e.data);
-                    }});
-
-                    eventSource.onmessage = function(e) {{
-                        try {{
-                            const data = JSON.parse(e.data);
-                            if (data.code && data.code >= 4000 && data.code <= 5999) {{
-                                log("Error event received:", true);
-                                log('<pre>' + JSON.stringify(data, null, 2) + '</pre>', true);
-                            }} else {{
-                                log("Event: message, data: " + e.data);
-                            }}
-                        }} catch (error) {{
-                            log("Event: message, data: " + e.data);
-                        }}
-                    }};
-                }}
-
-                function fetchErrorDetails() {{
-                    fetch('https://api.machine-prod.ru/sse/v1/files/sse-status')
-                        .then(response => response.json())
-                        .catch(error => {{
-                            return {{ msg: 'Network error', details: error.message }};
-                        }})
-                        .then(data => {{
-                            log("Error details:", true);
-                            log('<pre>' + JSON.stringify(data, null, 2) + '</pre>', true);
-                        }});
-                }}
-
-                function stop() {{
-                    if (eventSource) {{
-                        eventSource.close();
-                        log("Disconnected");
-                    }}
-                }}
-
-                function log(msg, isError = false) {{
-                    let time = new Date()
-                    let timeval = time.getHours() + ':' + time.getMinutes() + ':' + time.getSeconds() + '  ';
-                    let className = isError ? 'error' : '';
-                    logElem.innerHTML = `<div class="${{className}}">${{timeval}}${{msg}}</div>` + logElem.innerHTML;
-                }}
-
-                // Запускаем EventSource при загрузке страницы
-                startEventSource();
-                </script>
-
-                <button onclick="stop()">Stop</button>
-                <button onclick="startEventSource()">Restart</button>
-                <div id="logElem" style="margin: 6px 0"></div>
-
-        </body>
-    </html>
-    """
-    return p0 + p2
-
-
 def html_ws(user_id):
     p0 = """<!DOCTYPE html>
 <html>
@@ -608,7 +664,7 @@ def html_ws(user_id):
             let socket;
 
             function connect() {{
-                socket = new WebSocket('wss://api.machine-prod.ru/ws/v1/files/ws-status');
+                socket = new WebSocket('wss://api.machine-prod.ru/ws/v1/files/ws-status{user_id}');
     """
     p3 = """
                 socket.onopen = function(e) {
@@ -659,11 +715,33 @@ def html_ws(user_id):
     return p0 + p2 + p3
 
 
-@router.get('/get_user_ws')
-async def get_ws(session_id: str | None = Cookie(None)):
+
+
+@router.get('/get-user-ws/{session_id}')
+async def get_ws(session_id: str) -> HTMLResponse:
+    if not session_id:
+        raise EXC(ErrorCode.SessionNotFound)
     return HTMLResponse(html_ws(session_id))
 
 
-@router.get('/get_user_sse')
-async def get_sse(session_id: str | None = Cookie(None)):
+@router.get('/get-user-ws-test')
+async def get_ws(session_id: str | None = Cookie(None)) -> HTMLResponse:
+    if not session_id:
+        raise EXC(ErrorCode.SessionNotFound)
+    return HTMLResponse(html_ws(session_id))
+
+@router.get('/get-user-sse/{session_id}')
+async def get_sse(session_id: str) -> HTMLResponse:
+
+    if not session_id:
+        raise EXC(ErrorCode.SessionNotFound)
+    return HTMLResponse(html(session_id))
+
+
+@router.get('/get-user-sse-test')
+async def get_sse_test(session_id: str | None = Cookie(None)) -> HTMLResponse:
+
+    if not session_id:
+        raise EXC(ErrorCode.SessionNotFound)
+
     return HTMLResponse(html(session_id))

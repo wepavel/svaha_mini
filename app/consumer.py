@@ -11,6 +11,7 @@ from app.core.logging import bind_contextvars, logger
 from app.models.task import TaskStatus
 from app.services.redis_service import redis_service
 from app.services.s3_async import s3
+from app.api.sse_eventbus import set_mixing_progress, Position
 
 
 async def main() -> None:
@@ -62,7 +63,10 @@ async def main() -> None:
                             track_url = (
                                 f'{settings.S3_PUBLIC_DOMAIN}/{message["session_id"]}/{message["task_id"]}/R.mp3'
                             )
-                            await asyncio.sleep(5)
+                            for i in range(6):
+                                await set_mixing_progress(message["session_id"], int(i * 100 / 5), position=Position.CENTER)
+                                await asyncio.sleep(1)
+
                             await redis_service.complete_task(message['session_id'], track_url)
                         except:
                             logger.error('Error uploading file from core')

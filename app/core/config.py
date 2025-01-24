@@ -2,7 +2,7 @@ import os
 
 from pydantic import AnyHttpUrl, Field, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
+from dataclasses import field
 
 class Settings(BaseSettings):
 
@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     API_V1_STR: str = '/api/v1'
     # SERVER_NAME: str
     # SERVER_HOST: AnyHttpUrl
-    HOST: str = os.getenv('HOST', '127.0.0.1')
+    HOST: str = os.getenv('HOST', '0.0.0.0')
     PORT: int = os.getenv('PORT', 8001)
 
     PROJECT_NAME: str = 'Default Project Name'
@@ -56,7 +56,7 @@ class Settings(BaseSettings):
 
     QUEUE_EXPIRE_SEC: int = 24 * 60 * 60
 
-    BACKEND_CORS_ORIGINS: list[AnyHttpUrl] = Field(default_factory=list)
+    BACKEND_CORS_ORIGINS: list[AnyHttpUrl] = field(default_factory=list)
 
     @field_validator('BACKEND_CORS_ORIGINS', mode='before')
     @classmethod

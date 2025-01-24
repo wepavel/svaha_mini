@@ -25,10 +25,11 @@ class Position(str, Enum):
     LEFT_BOTTOM = 'left-bottom'
     RIGHT_TOP = 'right-top'
     RIGHT_BOTTOM = 'right-bottom'
+    CENTER = 'center'
 
 
 class EventData(BaseModel):
-    user_id: str
+    id: str
     message: str
     notification_type: NotificationType = Field(default=NotificationType.SUCCESS)
     position: Position = Field(default=Position.RIGHT_BOTTOM)
@@ -142,18 +143,18 @@ class SSEEventBus:
             logger.error(f'Error getting active connections: {e}')
             return {'error': {'message': str(e)}}
 
-    async def shutdown(self, user_id: str) -> None:
+    async def shutdown(self, session_id: str) -> None:
         # await self.post(user_id, Event(name="__exit__", data=EventData(user_id=user_id, message="Shutdown")))
         event = Event(
             name='__exit__',
             data=EventData(
-                user_id=user_id,
+                id=session_id,
                 message='Server is shutting down. Please reconnect.',
                 notification_type=NotificationType.WARNING,
                 position=Position.RIGHT_TOP,
             ),
         )
-        await self.post(user_id, event)
+        await self.post(session_id, event)
 
     async def broadcast(self, event: Event) -> None:
         try:
@@ -184,9 +185,9 @@ class SSEEventBus:
         except RedisError as e:
             logger.error(f'Redis error in _delete_broadcast_message_after_delay: {e}')
 
-    async def post(self, user_id: str, event: Event) -> None:
+    async def post(self, session_id: str, event: Event) -> None:
         try:
-            event_key = f'event:{user_id}'
+            event_key = f'event:{session_id}'
             event_json = event.model_dump_json()
             message_id = generate_id()
 
@@ -197,32 +198,32 @@ class SSEEventBus:
                 await pipe.ltrim(event_key, 0, self.max_events_per_user - 1)
                 # Устанавливаем TTL для всего списка событий
                 await pipe.expire(event_key, self.message_lifetime)
-                await pipe.publish(f'user:{user_id}', event_json)
+                await pipe.publish(f'user:{session_id}', event_json)
 
                 await pipe.execute()
 
-            asyncio.create_task(self._delete_message_after_delay(user_id, message_id, event_json))
+            asyncio.create_task(self._delete_message_after_delay(session_id, message_id, event_json))
         except RedisError as e:
             logger.error(f'Redis error in post: {e}')
 
-    async def _delete_message_after_delay(self, user_id: str, message_id: str, event_json: str):
+    async def _delete_message_after_delay(self, session_id: str, message_id: str, event_json: str):
         await asyncio.sleep(self.message_lifetime)
         try:
-            event_key = f'event:{user_id}'
+            event_key = f'event:{session_id}'
             await self.redis.lrem(event_key, 1, event_json)
-            logger.info(f'Message {message_id} for user {user_id} deleted after {self.message_lifetime} seconds')
+            logger.info(f'Message {message_id} for user {session_id} deleted after {self.message_lifetime} seconds')
         except RedisError as e:
             logger.error(f'Redis error in _delete_message_after_delay: {e}')
 
-    async def listen(self, user_id: str) -> AsyncGenerator[dict[str, str], None]:
+    async def listen(self, session_id: str) -> AsyncGenerator[dict[str, str], None]:
         pubsub = self.redis.pubsub()
-        logger.info(f'Listening for user {user_id} events')
+        logger.info(f'Listening for user {session_id} events')
         try:
-            await pubsub.subscribe(f'user:{user_id}', self.broadcast_channel)
+            await pubsub.subscribe(f'user:{session_id}', self.broadcast_channel)
             # await self.add_connection(user_id)
 
             # Send the most recent events
-            event_key = f'event:{user_id}'
+            event_key = f'event:{session_id}'
             events = await self.redis.lrange(event_key, 0, -1)
 
             for event_json in events:
@@ -243,9 +244,9 @@ class SSEEventBus:
                         event.data.info['broadcast'] = True
 
                     if event.name == '__exit__' and channel != self.broadcast_channel:
-                        await pubsub.unsubscribe(f'user:{user_id}', self.broadcast_channel)
+                        await pubsub.unsubscribe(f'user:{session_id}', self.broadcast_channel)
                         await pubsub.close()
-                        await self.remove_connection(user_id)
+                        await self.remove_connection(session_id)
                         return
 
                     yield event.as_sse_dict()
@@ -255,7 +256,7 @@ class SSEEventBus:
             logger.error(f'Error listening on pubsub: {e}')
 
         finally:
-            await pubsub.unsubscribe(f'user:{user_id}', 'broadcast:all')
+            await pubsub.unsubscribe(f'user:{session_id}', 'broadcast:all')
             await pubsub.close()
             logger.info('Pubsub closed')
             # await self.remove_connection(user_id)
@@ -273,7 +274,7 @@ async def payment_message(
     event = Event(
         name='message',
         data=EventData(
-            user_id=user_id,
+            id=user_id,
             message=f'Payment was successful\n{message}',
             notification_type=notification_type,
             position=position,
@@ -290,7 +291,7 @@ async def wg_msg(
 ) -> None:
     event = Event(
         name='message',
-        data=EventData(user_id=user_id, message=message, notification_type=notification_type, position=position),
+        data=EventData(id=user_id, message=message, notification_type=notification_type, position=position),
     )
     await event_bus.post(user_id, event)
 
@@ -302,6 +303,31 @@ async def broadcast_msg(
 ) -> None:
     event = Event(
         name='broadcast_message',
-        data=EventData(user_id='broadcast', message=message, notification_type=notification_type, position=position),
+        data=EventData(id='broadcast', message=message, notification_type=notification_type, position=position),
+    )
+    await event_bus.broadcast(event)
+
+
+async def set_upload_progress(
+    user_id: str,
+    progress: int,
+    notification_type: NotificationType = NotificationType.INFO,
+    position: Position = Position.RIGHT_BOTTOM,
+) -> None:
+    event = Event(
+        name='upload_progress',
+        data=EventData(id=user_id, message=str(progress), notification_type=notification_type, position=position),
+    )
+    await event_bus.broadcast(event)
+
+async def set_mixing_progress(
+    user_id: str,
+    progress: int,
+    notification_type: NotificationType = NotificationType.INFO,
+    position: Position = Position.RIGHT_BOTTOM,
+) -> None:
+    event = Event(
+        name='upload_progress',
+        data=EventData(id=user_id, message=str(progress), notification_type=notification_type, position=position),
     )
     await event_bus.broadcast(event)

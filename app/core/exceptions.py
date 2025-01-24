@@ -209,12 +209,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
-
+from dataclasses import field
 
 class ErrorResponse(BaseModel):
     code: int
     msg: str
-    details: dict[str, Any] = Field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict)
     redirect: bool = False
     notification: bool = False
     custom: bool = True
