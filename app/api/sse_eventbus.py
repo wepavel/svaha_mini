@@ -43,7 +43,7 @@ class Event(BaseModel):
     def as_sse_dict(self) -> dict[str, str]:
         return {
             'event': self.name,
-            'data': self.data.model_dump_json(),
+            'data': self.data.model_dump(),
         }
 
 

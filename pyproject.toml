@@ -12,6 +12,7 @@ dependencies = [
     "orjson>=3.10.14",
     "pydantic-settings>=2.7.1",
     "python-multipart>=0.0.20",
+    "starlette==0.45.2",
     "structlog>=24.4.0",
     "tenacity>=9.0.0",
     "ulid-py>=1.1.0",

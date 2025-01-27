@@ -60,7 +60,7 @@ class APIRedis:
     async def init_task(self, session_id: str) -> None:
         async with self.redis.pipeline() as pipe:
             await pipe.hset(
-                f'session:{session_id}', mapping={'status': TaskStatus.INIT.value, 'progress': 0, 'download_url': ''}
+                f'session:{session_id}', mapping={'status': TaskStatus.WAITING.value, 'progress': 0, 'download_url': ''}
             )
             await pipe.execute()
 

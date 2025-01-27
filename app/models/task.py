@@ -9,6 +9,7 @@ class TaskStatus(Enum):  # (Enum)
     COMPLETED = 'completed'
     FAILED = 'failed'
     STOPPED = 'stopped'
+    WAITING = 'waiting'
 
     # def __str__(self) -> str:
     #     return str.__str__(self)
