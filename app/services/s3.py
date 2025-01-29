@@ -1,7 +1,7 @@
 import logging
 import os
-from typing import Any
 import zipfile
+from typing import Any
 
 import boto3
 from botocore.exceptions import ClientError
@@ -170,12 +170,14 @@ class S3Manager:
 
     @staticmethod
     def zip_directory(source_dir: str, destination_dir: str, archive_name: str | None = None) -> str:
-        """
-        Archives the contents of the source directory.
-        Parameters:
+        """Archives the contents of the source directory.
+
+        Parameters
+        ----------
         - source_dir (str): Path to the directory to be archived.
         - destination_dir (str): Path where the archive will be stored.
         - archive_name (str, optional): Name for the archive. If not provided, the name of the source directory is used.
+
         """
         if not archive_name:
             archive_name = os.path.basename(source_dir) + '.zip'
@@ -193,14 +195,15 @@ class S3Manager:
 
     @staticmethod
     def unzip_to_directory(archive_path: str, extract_to_dir: str, create_subdir: bool = True) -> None:
-        """
-        Unarchives the contents of the archive file.
+        """Unarchives the contents of the archive file.
 
-        Parameters:
+        Parameters
+        ----------
         - archive_path (str): Path to the archive file.
         - extract_to_dir (str): Directory where the contents will be extracted.
         - create_subdir (bool, optional): If True, create a subdirectory named after the archive file (without extension).
                                           If False, extract directly to the specified directory.
+
         """
         if create_subdir:
             base_name = os.path.splitext(os.path.basename(archive_path))[0]
@@ -210,7 +213,7 @@ class S3Manager:
         logger.info(f'Archive {os.path.basename(archive_path)} extracted successfully to {extract_to_dir}')
 
     def zip_directory_and_upload(
-        self, source_dir: str, destination_dir: str | None = None, file_key: str | None = None
+        self, source_dir: str, destination_dir: str | None = None, file_key: str | None = None,
     ) -> str:
         if file_key is None:
             if destination_dir is None:

@@ -1,13 +1,13 @@
+import io
+import logging
+import os
+import zipfile
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from enum import Enum
 from functools import wraps
-import io
 from io import BytesIO
-import logging
-import os
 from typing import Any
-import zipfile
 
 import aioboto3
 from botocore import client as botocore_client
@@ -90,7 +90,7 @@ class S3Manager:
 
     @handle_s3_exceptions
     async def upload_file(
-        self, local_path: str, file_key: str, bucket_name: str, client_type: ClientType = ClientType.ROOT
+        self, local_path: str, file_key: str, bucket_name: str, client_type: ClientType = ClientType.ROOT,
     ) -> None:
         async with await self.get_client(client_type) as client:
             # client.upload_file(local_path, self.bucket_name, file_key)
@@ -98,7 +98,7 @@ class S3Manager:
 
     @handle_s3_exceptions
     async def upload_bytes_file(
-        self, file: BytesIO, file_key: str, bucket_name: str, client_type: ClientType = ClientType.ROOT
+        self, file: BytesIO, file_key: str, bucket_name: str, client_type: ClientType = ClientType.ROOT,
     ) -> None:
         async with await self.get_client(client_type) as client:
             # await client.upload_fileobj(file, self.bucket_name, file_key)
@@ -171,7 +171,7 @@ class S3Manager:
 
     @asynccontextmanager
     async def multipart_upload_context(
-        self, file_key: str, bucket_name: str, client_type: ClientType = ClientType.ROOT
+        self, file_key: str, bucket_name: str, client_type: ClientType = ClientType.ROOT,
     ) -> AsyncGenerator:
         async with await self.get_client(client_type) as client:
             try:
@@ -202,7 +202,7 @@ class S3Manager:
 
     @handle_s3_exceptions
     async def download_file(
-        self, file_key: str, local_path: str, bucket_name: str, client_type: ClientType = ClientType.ROOT
+        self, file_key: str, local_path: str, bucket_name: str, client_type: ClientType = ClientType.ROOT,
     ) -> None:
         async with await self.get_client(client_type) as client:
             # await client.download_file(self.bucket_name, file_key, local_path)
@@ -232,7 +232,7 @@ class S3Manager:
 
     @handle_s3_exceptions
     async def get_latest_subfolder(
-        self, path: str, bucket_name: str, client_type: ClientType = ClientType.ROOT
+        self, path: str, bucket_name: str, client_type: ClientType = ClientType.ROOT,
     ) -> str | None:
         async with await self.get_client(client_type) as client:
             response = await client.list_objects_v2(Bucket=bucket_name, Prefix=path, Delimiter='/')
@@ -266,7 +266,7 @@ class S3Manager:
                     await self.delete_object(file_key, bucket_name)
 
     async def download_files_from_dir(
-        self, *, dir_key: str, local_dir: str, bucket_name: str, overwrite: bool = False
+        self, *, dir_key: str, local_dir: str, bucket_name: str, overwrite: bool = False,
     ) -> None:
         """Download all files in a directory from S3 to a local directory
 
@@ -349,12 +349,14 @@ class S3Manager:
 
     @staticmethod
     async def zip_directory(source_dir: str, destination_dir: str, archive_name: str | None = None) -> str:
-        """
-        Archives the contents of the source directory.
-        Parameters:
+        """Archives the contents of the source directory.
+
+        Parameters
+        ----------
         - source_dir (str): Path to the directory to be archived.
         - destination_dir (str): Path where the archive will be stored.
         - archive_name (str, optional): Name for the archive. If not provided, the name of the source directory is used.
+
         """
         if not archive_name:
             archive_name = os.path.basename(source_dir) + '.zip'
@@ -372,14 +374,15 @@ class S3Manager:
 
     @staticmethod
     async def unzip_to_directory(archive_path: str, extract_to_dir: str, create_subdir: bool = True) -> None:
-        """
-        Unarchives the contents of the archive file.
+        """Unarchives the contents of the archive file.
 
-        Parameters:
+        Parameters
+        ----------
         - archive_path (str): Path to the archive file.
         - extract_to_dir (str): Directory where the contents will be extracted.
         - create_subdir (bool, optional): If True, create a subdirectory named after the archive file (without extension).
                                           If False, extract directly to the specified directory.
+
         """
         if create_subdir:
             base_name = os.path.splitext(os.path.basename(archive_path))[0]
@@ -389,7 +392,7 @@ class S3Manager:
         logger.info(f'Archive {os.path.basename(archive_path)} extracted successfully to {extract_to_dir}')
 
     async def zip_directory_and_upload(
-        self, source_dir: str, destination_dir: str | None = None, file_key: str | None = None
+        self, source_dir: str, destination_dir: str | None = None, file_key: str | None = None,
     ) -> str:
         if file_key is None:
             if destination_dir is None:
@@ -428,7 +431,7 @@ class MultipartUploadContext:
 
     async def upload_part(self, chunk: bytes):
         response = await self.client.upload_part(
-            Bucket=self.bucket_name, Key=self.file_key, UploadId=self.upload_id, PartNumber=self.part_number, Body=chunk
+            Bucket=self.bucket_name, Key=self.file_key, UploadId=self.upload_id, PartNumber=self.part_number, Body=chunk,
         )
         self.parts.append({'PartNumber': self.part_number, 'ETag': response['ETag']})
         self.part_number += 1

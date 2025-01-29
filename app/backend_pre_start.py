@@ -1,7 +1,11 @@
 import asyncio
 import logging
 
-from tenacity import after_log, before_log, retry, stop_after_attempt, wait_fixed
+from tenacity import after_log
+from tenacity import before_log
+from tenacity import retry
+from tenacity import stop_after_attempt
+from tenacity import wait_fixed
 
 from app.core.config import settings
 from app.core.logging import logger
@@ -17,7 +21,7 @@ wait_seconds = 1
     stop=stop_after_attempt(max_tries),
     wait=wait_fixed(wait_seconds),
     before=before_log(logger, logging.INFO),
-    after=after_log(logger, logging.WARN),
+    after=after_log(logger, logging.WARNING),
 )
 async def init_redis() -> None:
     await redis_service.check_redis_connection()
@@ -27,7 +31,7 @@ async def init_redis() -> None:
     stop=stop_after_attempt(max_tries),
     wait=wait_fixed(wait_seconds),
     before=before_log(logger, logging.INFO),
-    after=after_log(logger, logging.WARN),
+    after=after_log(logger, logging.WARNING),
 )
 async def init_rabbit() -> None:
     await r_queue.check_rabbit_connection()
@@ -37,7 +41,7 @@ async def init_rabbit() -> None:
     stop=stop_after_attempt(max_tries),
     wait=wait_fixed(wait_seconds),
     before=before_log(logger, logging.INFO),
-    after=after_log(logger, logging.WARN),
+    after=after_log(logger, logging.WARNING),
 )
 async def init_s3() -> None:
     await s3.check_s3_connection(settings.S3_SVAHA_READ_BUCKET)

@@ -1,10 +1,11 @@
 from contextvars import ContextVar
 
-from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from starlette.requests import Request
-from starlette.responses import Response
 import structlog
 import ulid
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import RequestResponseEndpoint
+from starlette.requests import Request
+from starlette.responses import Response
 
 event_id: ContextVar[str] = ContextVar('request_id', default='')
 
@@ -14,7 +15,7 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
         structlog.contextvars.clear_contextvars()
 
         x_request_id = request.headers.get('X-Request-Id')
-        _id = x_request_id if x_request_id else ulid.new().str
+        _id = x_request_id or ulid.new().str
 
         structlog.contextvars.bind_contextvars(request_id=_id)
         event_id.set(_id)

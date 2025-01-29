@@ -1,12 +1,14 @@
 from collections.abc import AsyncGenerator
 from datetime import datetime
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
+from unittest.mock import patch
 
 import pytest
 
-from app.models.task import TaskStatus
-from app.services.redis_service import APIRedis, BaseRedis
+from app.schemas.task import TaskStatus
+from app.services.redis_service import APIRedis
+from app.services.redis_service import BaseRedis
 
 
 @pytest.fixture
@@ -69,7 +71,8 @@ async def test_get_status(redis_service: APIRedis) -> None:
     pipeline_mock.execute.return_value = [expected_status]
     redis_service.redis.pipeline.return_value.__aenter__.return_value = pipeline_mock
 
-    result = await redis_service.get_session_data(session_id=session_id, status=True)
+    # result = await redis_service.get_session_data(session_id=session_id, status=True)
+    result = await redis_service.get_session_data_single(session_id=session_id, field='status')
 
     pipeline_mock.hget.assert_awaited_once_with(f'session:{session_id}', 'status')
     pipeline_mock.execute.assert_awaited_once()
@@ -87,7 +90,8 @@ async def test_get_position(redis_service: APIRedis) -> None:
     redis_service.redis.pipeline.return_value.__aenter__.return_value = pipeline_mock
 
     # position = await redis_service.get_position(session_id)
-    position = await redis_service.get_session_data(session_id=session_id, position=True)
+    # position = await redis_service.get_session_data(session_id=session_id, position=True)
+    position = await redis_service.get_session_data_single(session_id=session_id, field='position')
 
     pipeline_mock.lpos.assert_awaited_once_with('processing_queue', session_id)
     pipeline_mock.execute.assert_awaited_once()
@@ -105,7 +109,8 @@ async def test_get_completed_timestamp(redis_service: APIRedis) -> None:
     redis_service.redis.pipeline.return_value.__aenter__.return_value = pipeline_mock
 
     # timestamp = await redis_service.get_completed_timestamp(session_id)
-    timestamp = await redis_service.get_session_data(session_id=session_id, completed_timestamp=True)
+    # timestamp = await redis_service.get_session_data(session_id=session_id, completed_timestamp=True)
+    timestamp = await redis_service.get_session_data_single(session_id=session_id, field='completed_timestamp')
 
     pipeline_mock.hget.assert_awaited_once_with(f'session:{session_id}', 'completed_timestamp')
     pipeline_mock.execute.assert_awaited_once()
@@ -156,5 +161,5 @@ async def test_check_redis_connection_error(redis_base_service: BaseRedis) -> No
             await redis_base_service.check_redis_connection()
 
         mock_logger.error.assert_called_once_with(
-            'Error connecting to Redis server. Please check the connection settings.'
+            'Error connecting to Redis server. Please check the connection settings.',
         )

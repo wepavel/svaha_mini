@@ -12,6 +12,7 @@ RUN apt-get update && \
 
 WORKDIR /app/
 
+# todo change to UV, add vector.toml, log_config (if needed)
 ADD ./requirements.lock /app/requirements.lock
 ADD ./pyproject.toml /app/pyproject.toml
 ADD ./README.md /app/README.md

@@ -199,17 +199,20 @@
 #         return create_error_response('Validation Error', 422, details)
 
 
-from enum import Enum
 import json
+from dataclasses import field
+from enum import Enum
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI
+from fastapi import HTTPException
+from fastapi import Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from dataclasses import field
+
 
 class ErrorResponse(BaseModel):
     code: int
@@ -253,9 +256,7 @@ class ErrorCode(Enum):
     #  4401-4500: General Validation Errors
     WrongFormat = ErrorResponse(code=4411, msg='Wrong format')
     #  4501 - 4508: API and Request Errors
-    Unauthorized = ErrorResponse(
-        code=4501, msg='Sorry, you are not allowed to access this service: UnauthorizedRequest'
-    )
+    Unauthorized = ErrorResponse(code=4501, msg='You are not allowed to access this service: UnauthorizedRequest')
     AuthorizeError = ErrorResponse(code=4502, msg='Authorization error')
     ForbiddenError = ErrorResponse(code=4503, msg='Forbidden')
     NotFoundError = ErrorResponse(code=4504, msg='Not Found')
@@ -289,7 +290,7 @@ class EXC(HTTPException):
     ) -> None:
 
         error_response = exc.value.model_copy(
-            update={'details': details, 'redirect': redirect, 'notification': notification}
+            update={'details': details, 'redirect': redirect, 'notification': notification},
         )
 
         super().__init__(status_code=400, detail=error_response.model_dump_json(), headers=headers)
@@ -324,7 +325,7 @@ def exception_handler(app: FastAPI) -> None:
                     'details': details,
                     'redirect': redirect,
                     'notification': notification,
-                }
+                },
             ),
         )
 

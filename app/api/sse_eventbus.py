@@ -1,55 +1,24 @@
 import asyncio
-from collections.abc import AsyncGenerator
-from enum import Enum
 import json
+from collections.abc import AsyncGenerator
 from typing import Any
 
 import aioredis
 from aioredis.exceptions import RedisError
-from pydantic import BaseModel, Field
 
 from app.core.logging import logger
 from app.core.utils import generate_id
-from app.services.redis_service import BaseRedis, redis_base
-
-
-class NotificationType(str, Enum):
-    CRITICAL = 'CRITICAL'
-    WARNING = 'WARNING'
-    INFO = 'INFO'
-    SUCCESS = 'SUCCESS'
-
-
-class Position(str, Enum):
-    LEFT_TOP = 'left-top'
-    LEFT_BOTTOM = 'left-bottom'
-    RIGHT_TOP = 'right-top'
-    RIGHT_BOTTOM = 'right-bottom'
-    CENTER = 'center'
-
-
-class EventData(BaseModel):
-    id: str
-    message: str
-    notification_type: NotificationType = Field(default=NotificationType.SUCCESS)
-    position: Position = Field(default=Position.RIGHT_BOTTOM)
-    info: dict | None = None
-
-
-class Event(BaseModel):
-    name: str
-    data: EventData
-
-    def as_sse_dict(self) -> dict[str, str]:
-        return {
-            'event': self.name,
-            'data': self.data.model_dump(),
-        }
+from app.schemas.events import Event
+from app.schemas.events import EventData
+from app.schemas.events import NotificationType
+from app.schemas.events import Position
+from app.services.redis_service import BaseRedis
+from app.services.redis_service import redis_base
 
 
 class SSEEventBus:
     def __init__(
-        self, base_redis: BaseRedis, max_events_per_user: int = 100, message_lifetime: int = 3600
+        self, base_redis: BaseRedis, max_events_per_user: int = 100, message_lifetime: int = 3600,
     ) -> None:  # redis_url: str = "redis://localhost:6379"
         self.redis: aioredis.Redis = base_redis.get_redis()
         self.max_events_per_user = max_events_per_user
@@ -319,6 +288,7 @@ async def set_upload_progress(
         data=EventData(id=user_id, message=str(progress), notification_type=notification_type, position=position),
     )
     await event_bus.broadcast(event)
+
 
 async def set_mixing_progress(
     user_id: str,

@@ -1,11 +1,14 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
+from unittest.mock import MagicMock
+from unittest.mock import patch
 
+import pytest
 from aio_pika import Channel
 from aio_pika.abc import AbstractRobustConnection
-import pytest
 
 from app.core.config import settings
-from app.services.processing import RQueue, r_queue
+from app.services.processing import RQueue
+from app.services.processing import r_queue
 from app.services.redis_service import BaseRedis
 
 

@@ -1,18 +1,24 @@
-from fastapi.responses import HTMLResponse, StreamingResponse
-from app.core.exceptions import EXC, ErrorCode
-from fastapi import APIRouter, Cookie, Request, WebSocket
-from app.api.sse_eventbus import NotificationType, Position, Event, EventData, event_bus, broadcast_msg, wg_msg
-from starlette.background import BackgroundTask
-from typing import Any
-from app.core.logging import logger
-from app.api.ws_manager import ws_manager
 import asyncio
-from app.services.redis_service import redis_service
+from typing import Any
 
+from fastapi import APIRouter
+from fastapi import Cookie
+from fastapi import Request
+from fastapi import WebSocket
+from fastapi.responses import StreamingResponse
+from starlette.background import BackgroundTask
+
+from app.api.sse_eventbus import event_bus
+from app.api.ws_manager import ws_manager
+from app.core.exceptions import EXC
+from app.core.exceptions import ErrorCode
+from app.core.logging import logger
+from app.services.redis_service import redis_service
 
 router = APIRouter()
 
-@router.get('/sse-status/{session_id}')
+
+@router.get('/sse/{session_id}')
 async def listen_events(request: Request, session_id: str):
 
     if not session_id:
@@ -40,9 +46,9 @@ async def listen_events(request: Request, session_id: str):
             #     break
         except PermissionError as e:
             yield f'event: error\ndata: {e!s}\n\n'
-        except Exception:
+        except Exception as e:
             yield 'event: error\ndata: An unexpected error occurred\n\n'
-            logger.exception('Error in SSE stream')
+            logger.exception(f'Error in SSE stream: {e}')
         finally:
             await event_bus.remove_connection(session_id)
             logger.info(f'SSE connection closed for session {session_id} from {client_host}')
@@ -51,11 +57,12 @@ async def listen_events(request: Request, session_id: str):
         event_generator(),
         media_type='text/event-stream',
         background=BackgroundTask(
-            lambda: logger.info(f'2) SSE connection fully closed for session {session_id} from {client_host}')
+            lambda: logger.info(f'2) SSE connection fully closed for session {session_id} from {client_host}'),
         ),
     )
 
-@router.websocket('/ws-status')
+
+@router.websocket('/ws')
 async def websocket_endpoint(websocket: WebSocket, session_id: str | None = Cookie(None)):
     await ws_manager.connect(websocket, session_id)
     if session_id is None:
@@ -63,11 +70,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str | None = Cook
 
     try:
         while True:
-            session_data = await redis_service.get_session_data(
+            session_data = await redis_service.get_session_data_multiple(
                 session_id,
-                status=True,
-                progress=True,
-                position=True,
+                fields=['status', 'progress', 'position'],
             )
 
             await ws_manager.send_personal_message(websocket, session_data)
@@ -75,3 +80,13 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str | None = Cook
             await asyncio.sleep(1)
     finally:
         ws_manager.disconnect(session_id)
+
+
+@router.get('/active-connections')
+async def get_active_connections() -> dict[str, Any]:
+    """Получить список активных SSE подключений.
+    Возвращает словарь, где ключ - это user_id, а значение - количество активных подключений для этого пользователя.
+    """
+    # Здесь можно добавить проверку прав доступа, если это необходимо
+    active_connections = await event_bus.get_active_connections()
+    return active_connections

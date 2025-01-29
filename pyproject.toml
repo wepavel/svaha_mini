@@ -33,10 +33,12 @@ skip-string-normalization = false
 line-length = 120
 #extend-ignore = "E203"  # todo It's not working. Fix it by adding E203 and preview=true to the Ruff
 
-
 [tool.ruff]
 line-length = 120
 preview = true
+
+[tool.ruff.format]
+quote-style = "single"
 
 [tool.ruff.lint]
 ignore = [
@@ -47,56 +49,14 @@ ignore = [
     "RET504", # Unnecessary variable assignment before `return` statement
     "RUF002", # Docstring contains ambiguous unicode character
     "RUF003", # Comment contains ambiguous unicode character
-#    "UP006", # Use `list` instead of `List` for type annotations
-#    "UP007"  # Use `X | Y` for type annotations
+    "UP006", # Use `list` instead of `List` for type annotations
+    "UP007"  # Use `X | Y` for type annotations
 ]
-select = [
-#    "D",   # pydocstyle
-    "F", # Pyflakes
-    "I", # isort
-    "N", # pep8-naming
-    "RUF", # Ruff-specific rules
-    "UP", # pyupgrade
-    # pycodestyle    "E", # pycodestyle errors
-    "W", # pycodestyle warnings
-    # flake8    "A", # flake8-builtins
-    "ANN", # flake8-annotations
-    "ARG", # flake8-unused-arguments
-    "B", # flake8-bugbear
-    "BLE", # flake8-blind-except
-    "C", # flake8-comprehensions
-    "C4", # flake8-comprehensions
-#     "DTZ", # flake8-datetimez TODO: Enable me
-    "EM", # flake8-errmsg
-#     "FBT", # flake8-boolean-trap
-    "ICN", # flake8-import-conventions
-    "ISC", # flake8-implicit-str-concat
-    "PIE", # flake8-pie
-    "PT", # flake8-pytest-style
-    "Q", # flake8-quotes
-    "RET", # flake8-return
-    "S", # flake8-bandit
-    "SIM", # flake8-simplify
-    "T10", # flake8-debugger
-    "T20", # flake8-print
-    "TID", # flake8-tidy-imports
-    "YTT", # flake8-2020
-    # "ERA", # eradicate    "PD", # pandas-vet
-    "PGH", # pygrep-hooks
-    # Pylint    "PLC",
-    "PLE",
-    "PLR",
-    "PLW",
-]
-
-[tool.ruff.format]
-quote-style = "single"
-indent-style = "tab"
+select = ["ALL"]
 
 [tool.ruff.lint.isort]
-combine-as-imports = true
-force-sort-within-sections = true
-force-single-line = false
+combine-as-imports = false
+force-single-line = true
 known-first-party = [""]
 order-by-type = true
 

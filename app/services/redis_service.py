@@ -4,7 +4,7 @@ import aioredis
 
 from app.core.config import settings
 from app.core.logging import logger
-from app.models.task import TaskStatus
+from app.schemas.task import TaskStatus
 
 
 class BaseRedis:
@@ -60,7 +60,7 @@ class APIRedis:
     async def init_task(self, session_id: str) -> None:
         async with self.redis.pipeline() as pipe:
             await pipe.hset(
-                f'session:{session_id}', mapping={'status': TaskStatus.WAITING.value, 'progress': 0, 'download_url': ''}
+                f'session:{session_id}', mapping={'status': TaskStatus.WAITING.value, 'progress': 0, 'download_url': ''},
             )
             await pipe.execute()
 
@@ -90,21 +90,6 @@ class APIRedis:
         completed_timestamp: bool = False,
         download_url: bool = False,
     ) -> dict[str, str | int | float | None]:
-        """
-        Retrieves session data for the specified fields using Redis pipeline.
-
-        Args:
-            session_id (str): The session ID.
-            status (bool, optional): Whether to retrieve the status of the session. Defaults to False.
-            progress (bool, optional): Whether to retrieve the progress of the session. Defaults to False.
-            track_id (bool, optional): Whether to retrieve the track ID associated with the session. Defaults to False.
-            position (bool, optional): Whether to retrieve the position of the session in the processing queue. Defaults to False.
-            completed_timestamp (bool, optional): Whether to retrieve the timestamp when the session was completed. Defaults to False.
-            download_url (bool, optional): Whether to retrieve the download URL for the session. Defaults to False.
-
-        Returns:
-            dict[str, str | int | float | None]: A dictionary containing the requested fields and their values.
-        """
         fields = []
         if status:
             fields.append('status')
@@ -145,6 +130,41 @@ class APIRedis:
                     data[field] = value
 
             return data
+
+    @staticmethod
+    def cast_to_int_float(value):
+        if value is not None and isinstance(value, str):
+            value = int(value) if value.isdecimal() else value
+            value = float(value) if value.replace('.', '', 1).replace('-', '', 1).isdecimal() else value
+        return value
+
+    async def get_session_data_single(self, session_id: str, field: str) -> str | int | float | None:
+        # status, progress, track_id, position, completed_timestamp, download_url,
+        async with self.redis.pipeline() as pipe:
+            if field == 'position':
+                await pipe.lpos('processing_queue', session_id)
+            else:
+                await pipe.hget(f'session:{session_id}', field)
+            result = await pipe.execute()
+            value = result[0] if result else None
+            value = self.cast_to_int_float(value)
+            return value
+
+    async def get_session_data_multiple(self, session_id: str, fields: list[str]) -> dict[str, str | int | float | None]:
+        # status, progress, track_id, position, completed_timestamp, download_url,
+        async with self.redis.pipeline() as pipe:
+            for field in fields:
+                if field == 'position':
+                    await pipe.lpos('processing_queue', session_id)
+                else:
+                    await pipe.hget(f'session:{session_id}', field)
+            results = await pipe.execute()
+
+        data = {}
+        for field, value in zip(fields, results, strict=False):
+            value = self.cast_to_int_float(value)
+            data[field] = value
+        return data
 
     async def set_status(self, session_id: str, status: TaskStatus) -> None:
         async with self.redis.pipeline() as pipe:

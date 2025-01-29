@@ -1,11 +1,14 @@
 
+from fastapi import APIRouter
+from fastapi import Cookie
 from fastapi.responses import HTMLResponse
 
 from app.core.config import settings
-from app.core.exceptions import EXC, ErrorCode
-from fastapi import APIRouter, Cookie
+from app.core.exceptions import EXC
+from app.core.exceptions import ErrorCode
 
 router = APIRouter()
+
 
 def html(user_id):
 
@@ -31,7 +34,7 @@ def html(user_id):
             let eventSource;
             // EventSource;
             // WebSocket
-            eventSource = new EventSource('http://{settings.HOST}:{settings.PORT}/api/v1/streaming/sse-status/{user_id}');"""
+            eventSource = new EventSource('http://{settings.HOST}:{settings.PORT}/api/v1/events/sse/{user_id}');"""
     p3 = """
               eventSource.onopen = function(e) {
                 log("Event: open");
@@ -82,6 +85,7 @@ def html(user_id):
 """
     return p0 + p2 + p3
 
+
 @router.get('/get-user-sse/{session_id}')
 async def get_sse(session_id: str) -> HTMLResponse:
 
@@ -97,6 +101,7 @@ async def get_sse_test(session_id: str | None = Cookie(None)) -> HTMLResponse:
         raise EXC(ErrorCode.SessionNotFound)
 
     return HTMLResponse(html(session_id))
+
 
 def html_ws(user_id):
     p0 = """<!DOCTYPE html>
@@ -120,7 +125,7 @@ def html_ws(user_id):
             let socket;
 
             function connect() {{
-                socket = new WebSocket('wss://api.machine-prod.ru/ws/v1/files/ws-status{user_id}');
+                socket = new WebSocket('wss://api.machine-prod.ru/ws/v1/events/ws{user_id}');
     """
     p3 = """
                 socket.onopen = function(e) {
@@ -171,7 +176,6 @@ def html_ws(user_id):
     return p0 + p2 + p3
 
 
-
 @router.get('/get-user-ws/{session_id}')
 async def get_ws(session_id: str) -> HTMLResponse:
     if not session_id:
@@ -184,7 +188,6 @@ async def get_ws(session_id: str | None = Cookie(None)) -> HTMLResponse:
     if not session_id:
         raise EXC(ErrorCode.SessionNotFound)
     return HTMLResponse(html_ws(session_id))
-
 
 
 def file_upload_html(session_id: str, track_id: str, type: str):
@@ -259,7 +262,7 @@ def file_upload_html(session_id: str, track_id: str, type: str):
 
 """
     p2 = f"""
-            request.open('post', 'http://127.0.0.1:8001/api/v1/files/true-upload/{session_id}/mock/mock');
+            request.open('post', 'http://127.0.0.1:8001/api/v1/files/upload/{session_id}/mock/mock');
             // request.timeout = 45000;
             request.send(formdata);
             """
@@ -282,6 +285,7 @@ def file_upload_html(session_id: str, track_id: str, type: str):
 </html>
     """
     return p0 + p1 + p2 + p3
+
 
 @router.get('/upload-ui/{session_id}/{track_id}/{type}')
 async def upload_ui(session_id: str, track_id: str, type: str) -> HTMLResponse:

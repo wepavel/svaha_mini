@@ -57,11 +57,12 @@
 #         logger.exception("An exception occurred")
 
 
-from collections.abc import Mapping
-from datetime import datetime, timezone
-from enum import Enum
 import logging
 import traceback
+from collections.abc import Mapping
+from datetime import datetime
+from datetime import timezone
+from enum import Enum
 from typing import Any
 
 import orjson

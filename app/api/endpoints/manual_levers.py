@@ -1,11 +1,21 @@
-from fastapi.responses import HTMLResponse
-from app.core.exceptions import EXC, ErrorCode
-from fastapi import APIRouter, Cookie
-from app.api.sse_eventbus import NotificationType, Position, Event, EventData, event_bus, broadcast_msg, wg_msg
 import asyncio
 from typing import Any
 
+from fastapi import APIRouter
+from fastapi import Cookie
+
+from app.api.sse_eventbus import Event
+from app.api.sse_eventbus import EventData
+from app.api.sse_eventbus import NotificationType
+from app.api.sse_eventbus import Position
+from app.api.sse_eventbus import broadcast_msg
+from app.api.sse_eventbus import event_bus
+from app.api.sse_eventbus import wg_msg
+from app.core.exceptions import EXC
+from app.core.exceptions import ErrorCode
+
 router = APIRouter()
+
 
 @router.get('/mock-progress/{session_id}')
 async def mock_progress(session_id: str):
@@ -28,13 +38,17 @@ async def mock_progress(session_id: str):
         name='progress',
         data=EventData(
             id=session_id,
-            message=f'Progress state: 100',
+            message='Progress state: 100',
             notification_type=NotificationType.INFO,
             position=Position.CENTER),
     )
     await event_bus.post(session_id, event)
-    event = Event(name='progress', data=EventData(id=session_id, message=f'Upload have been succesfully completed',
-                                                 notification_type=NotificationType.SUCCESS, position=Position.CENTER))
+    event = Event(name='progress', data=EventData(
+        id=session_id,
+        message='Upload have been succesfully completed',
+        notification_type=NotificationType.SUCCESS,
+        position=Position.CENTER,
+    ))
     await event_bus.post(session_id, event)
 
 
@@ -43,6 +57,7 @@ async def mock_progress_test(session_id: str | None = Cookie(None)):
     if not session_id:
         raise EXC(ErrorCode.SessionNotFound)
     return await mock_progress(session_id)
+
 
 @router.post('/send-progress-message/{progress}/{session_id}')
 async def send_progress_message(progress: int, session_id: str) -> None:
@@ -75,9 +90,10 @@ async def send_wg_message(session_id: str) -> dict[str, Any]:
         raise EXC(ErrorCode.SessionNotFound)
 
     status = await wg_msg(
-        session_id, f'Hello {session_id} from wg message', NotificationType.INFO, Position.RIGHT_BOTTOM
+        session_id, f'Hello {session_id} from wg message', NotificationType.INFO, Position.RIGHT_BOTTOM,
     )
     return {'status': status}
+
 
 @router.post('/send-wg-message-test')
 async def send_wg_message_test(session_id: str | None = Cookie(None)) -> dict[str, Any]:

@@ -51,8 +51,7 @@ class RQueue:
             raise e
 
     async def send_to_queue(self, message: dict) -> bool:
-        """
-        Sends a message to the processing queue and creates a task record in Redis.
+        """Sends a message to the processing queue and creates a task record in Redis.
 
         Args:
         - message (dict): Message data to be sent, including 'session_id'.
@@ -68,6 +67,7 @@ class RQueue:
         Logs errors if sending the message or creating the record fails.
 
         Returns: None
+
         """
         session_id = message['session_id']
         task_id = message['task_id']

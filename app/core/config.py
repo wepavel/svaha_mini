@@ -1,8 +1,12 @@
 import os
-
-from pydantic import AnyHttpUrl, Field, ValidationError, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from dataclasses import field
+
+from pydantic import AnyHttpUrl
+from pydantic import ValidationError
+from pydantic import field_validator
+from pydantic_settings import BaseSettings
+from pydantic_settings import SettingsConfigDict
+
 
 class Settings(BaseSettings):
 
